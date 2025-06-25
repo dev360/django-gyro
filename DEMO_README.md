@@ -23,7 +23,7 @@ The demo showcases the complete Django Gyro workflow as described in the technic
    ```bash
    # Open the project in VS Code
    code .
-   
+
    # Use Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
    # Select: "Dev Containers: Reopen in Container"
    ```
@@ -52,10 +52,10 @@ The demo showcases the complete Django Gyro workflow as described in the technic
    ```bash
    # Connect to the running container
    docker exec -it gyro_example bash
-   
+
    # Navigate to the Django project
    cd src/example
-   
+
    # Run the end-to-end demo
    python manage.py demo_end_to_end --use-host-volume
    ```
@@ -191,7 +191,7 @@ head -5 src/example/gyro_example/exports/gyro_example_customer.csv
 ## Key Features Demonstrated
 
 - ✅ **DataSlicer.run()** - Main ETL orchestration method
-- ✅ **DataSlicer.Postgres()** - PostgreSQL source convenience method  
+- ✅ **DataSlicer.Postgres()** - PostgreSQL source convenience method
 - ✅ **DataSlicer.File()** - File target convenience method
 - ✅ **ImportJob** - Data export job definition
 - ✅ **Automatic dependency sorting** - Ensures proper export order
@@ -230,9 +230,9 @@ The demo environment consists of:
 
 - **PostgreSQL Database** (`gyro_db`): Stores the sample e-commerce data
 - **Django Application** (`gyro_example`): Runs the Django Gyro demo
-- **Volume Mounts**: 
+- **Volume Mounts**:
   - Project root: `..` → `/app` (includes all source code and exports directory)
   - Django Gyro package: `../src/django_gyro` → `/usr/local/lib/python3.10/site-packages/django_gyro`
 - **Network**: Both containers on `test-network` for communication
 
-This setup provides a complete, isolated environment for testing Django Gyro with real PostgreSQL data and file exports that you can inspect from your host machine. 
+This setup provides a complete, isolated environment for testing Django Gyro with real PostgreSQL data and file exports that you can inspect from your host machine.
