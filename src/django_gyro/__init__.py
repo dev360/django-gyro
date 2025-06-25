@@ -1,7 +1,11 @@
 """
-Django Gyro - Declarative CSV import/export system for Django.
-"""
-from .core import Importer
+Django Gyro: A Django data slicer utility for CSV import/export.
 
-__version__ = "0.0.1"
-__all__ = ["Importer"]
+This package provides a framework for importing and exporting Django model data
+with proper dependency handling and flexible configuration.
+"""
+
+from .core import Importer, ImportJob
+
+__version__ = "0.1.0"
+__all__ = ["Importer", "ImportJob"]

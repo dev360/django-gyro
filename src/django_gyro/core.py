@@ -196,15 +196,15 @@ class Importer(metaclass=ImporterMeta):
     model: Type[models.Model]
     _registry: Dict[Type[models.Model], Type['Importer']] = {}
     
-    def get_file_name(self) -> str:
+    @classmethod
+    def get_file_name(cls):
         """
-        Generate the CSV filename based on the model's database table name.
+        Generate the CSV file name for this importer based on the model's table name.
         
         Returns:
-            The filename with .csv extension (e.g., "products_product.csv")
+            str: The CSV filename (e.g., "products_product.csv")
         """
-        table_name = self.model._meta.db_table
-        return f"{table_name}.csv"
+        return f"{cls.model._meta.db_table}.csv"
     
     @classmethod
     def get_importer_for_model(
@@ -220,4 +220,215 @@ class Importer(metaclass=ImporterMeta):
         Returns:
             The importer class if found, None otherwise
         """
-        return cls._registry.get(model) 
+        return cls._registry.get(model)
+
+
+class ImportJob:
+    """
+    Represents a data import job for a specific Django model.
+    
+    ImportJob defines what data should be imported (model + optional QuerySet)
+    and provides dependency analysis to ensure proper import ordering.
+    
+    Attributes:
+        model: The Django model class to import
+        query: Optional QuerySet to filter the data (None means all records)
+    """
+    
+    # Class-level cache for dependency computations
+    _dependency_cache = {}
+    
+    def __init__(self, model, query=None):
+        """
+        Initialize an ImportJob.
+        
+        Args:
+            model: Django model class to import
+            query: Optional QuerySet to filter data (must match model)
+            
+        Raises:
+            TypeError: If model is not a Django model or query is not a QuerySet
+            ValueError: If query model doesn't match the specified model
+        """
+        # Validate model
+        if not self._is_django_model(model):
+            raise TypeError("model must be a Django model class")
+        
+        # Validate query
+        if query is not None:
+            if not self._is_django_queryset(query):
+                raise TypeError("query must be a Django QuerySet or None")
+            
+            # Check that query model matches our model
+            if query.model != model:
+                raise ValueError("QuerySet model does not match ImportJob model")
+        
+        # Set properties (make them private to prevent modification)
+        self._model = model
+        self._query = query
+    
+    @property
+    def model(self):
+        """Get the Django model class for this import job."""
+        return self._model
+    
+    @property
+    def query(self):
+        """Get the QuerySet for this import job (or None for all records)."""
+        return self._query
+    
+    def get_dependencies(self):
+        """
+        Get the list of Django models that this job depends on.
+        
+        Dependencies are determined by analyzing foreign key relationships
+        in the Importer's Columns configuration. The result is cached for
+        performance since model relationships are static.
+        
+        Returns:
+            list: List of Django model classes that must be imported first
+            
+        Raises:
+            ValueError: If circular dependencies are detected
+        """
+        # Check cache first
+        cache_key = id(self.model)
+        if cache_key in self._dependency_cache:
+            return self._dependency_cache[cache_key]
+        
+        # Compute dependencies
+        dependencies = []
+        visited = set()
+        visiting = set()
+        
+        def _get_model_dependencies(model):
+            """Recursively get dependencies for a model."""
+            if model in visiting:
+                raise ValueError(f"Circular dependency detected involving {model.__name__}")
+            
+            if model in visited:
+                return []
+            
+            visiting.add(model)
+            model_deps = []
+            
+            # Get the importer for this model
+            importer_class = Importer.get_importer_for_model(model)
+            if importer_class and hasattr(importer_class, 'Columns'):
+                # Analyze the Columns configuration
+                columns_class = importer_class.Columns
+                
+                for attr_name in dir(columns_class):
+                    if not attr_name.startswith('_'):
+                        attr_value = getattr(columns_class, attr_name)
+                        
+                        # If it's a Django model, it's a dependency
+                        if self._is_django_model(attr_value):
+                            model_deps.append(attr_value)
+                            # Recursively get dependencies of dependencies
+                            nested_deps = _get_model_dependencies(attr_value)
+                            model_deps.extend(nested_deps)
+            
+            visiting.remove(model)
+            visited.add(model)
+            return model_deps
+        
+        # Get all dependencies
+        all_deps = _get_model_dependencies(self.model)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        for dep in all_deps:
+            if dep not in seen:
+                dependencies.append(dep)
+                seen.add(dep)
+        
+        # Cache the result
+        self._dependency_cache[cache_key] = dependencies
+        
+        return dependencies
+    
+    @classmethod
+    def sort_by_dependencies(cls, jobs):
+        """
+        Sort a list of ImportJobs by their dependency order.
+        
+        Jobs with no dependencies come first, followed by jobs that depend
+        on them, and so on. This ensures that data is imported in the
+        correct order to satisfy foreign key constraints.
+        
+        Args:
+            jobs: List of ImportJob instances to sort
+            
+        Returns:
+            list: Sorted list of ImportJob instances
+            
+        Raises:
+            ValueError: If circular dependencies are detected
+        """
+        # Build dependency graph
+        job_by_model = {job.model: job for job in jobs}
+        dependencies = {}
+        
+        for job in jobs:
+            try:
+                dependencies[job.model] = job.get_dependencies()
+            except ValueError as e:
+                # Re-raise with context about which models are involved
+                models_in_cycle = [j.model.__name__ for j in jobs]
+                raise ValueError(f"Circular dependency detected among models: {models_in_cycle}")
+        
+        # Topological sort
+        sorted_jobs = []
+        remaining_jobs = list(jobs)
+        
+        while remaining_jobs:
+            # Find jobs with no unsatisfied dependencies
+            ready_jobs = []
+            for job in remaining_jobs:
+                job_deps = dependencies[job.model]
+                unsatisfied_deps = [dep for dep in job_deps if dep in [j.model for j in remaining_jobs]]
+                
+                if not unsatisfied_deps:
+                    ready_jobs.append(job)
+            
+            if not ready_jobs:
+                # If no jobs are ready, we have a circular dependency
+                remaining_models = [job.model.__name__ for job in remaining_jobs]
+                raise ValueError(f"Circular dependency detected among models: {remaining_models}")
+            
+            # Add ready jobs to sorted list and remove from remaining
+            sorted_jobs.extend(ready_jobs)
+            for job in ready_jobs:
+                remaining_jobs.remove(job)
+        
+        return sorted_jobs
+    
+    def _is_django_model(self, obj):
+        """Check if an object is a Django model class."""
+        try:
+            from django.db import models
+            return (isinstance(obj, type) and 
+                    issubclass(obj, models.Model) and 
+                    obj != models.Model)
+        except ImportError:
+            return False
+    
+    def _is_django_queryset(self, obj):
+        """Check if an object is a Django QuerySet."""
+        try:
+            from django.db.models.query import QuerySet
+            return isinstance(obj, QuerySet)
+        except ImportError:
+            return False
+    
+    def __str__(self):
+        """String representation of the ImportJob."""
+        if self.query is None:
+            return f"ImportJob(model={self.model.__name__})"
+        else:
+            return f"ImportJob(model={self.model.__name__}, query={self.query})"
+    
+    def __repr__(self):
+        """Detailed string representation of the ImportJob."""
+        return self.__str__() 
