@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  nats_example:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    container_name: gyro_example
+    command: >
+      bash -c "
+        echo 'Waiting for services to be ready...' &&
+        sleep 5 &&
+        python src/example/manage.py migrate &&
+        python src/example/manage.py load_fake_data
+      "
+    depends_on:
+      nats:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    networks:
+      - test-network
+    volumes:
+      - ..:/app
+      - ../src/django_gyro:/usr/local/lib/python3.10/site-packages/django_gyro
+    restart: "no"
+    dns_search: .
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  gyro_data:
