@@ -1,6 +1,21 @@
 version: "3.8"
 
 services:
+  gyro_db:
+    image: postgres:15
+    container_name: gyro_db
+    environment:
+      POSTGRES_DB: gyro_example
+      POSTGRES_USER: gyro_user
+      POSTGRES_PASSWORD: gyro_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - gyro_data:/var/lib/postgresql/data
+    networks:
+      - test-network
+    restart: unless-stopped
+
   nats_example:
     build:
       context: ..
@@ -9,13 +24,12 @@ services:
     command: >
       bash -c "
         echo 'Waiting for services to be ready...' &&
-        sleep 5 &&
+        sleep 10 &&
         python src/example/manage.py migrate &&
         python src/example/manage.py load_fake_data
       "
     depends_on:
-      nats:
-        condition: service_started
+      - gyro_db
     ports:
       - "8000:8000"
     networks:
@@ -27,6 +41,8 @@ services:
     dns_search: .
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    environment:
+      - DATABASE_URL=postgresql://gyro_user:gyro_password@gyro_db:5432/gyro_example
 
 
 networks:
