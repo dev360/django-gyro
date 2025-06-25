@@ -16,7 +16,7 @@ services:
       - test-network
     restart: unless-stopped
 
-  nats_example:
+  gyro_example:
     build:
       context: ..
       dockerfile: .devcontainer/Dockerfile
