@@ -38,14 +38,14 @@ class Command(BaseCommand):
         parser.add_argument(
             "--use-host-volume",
             action="store_true",
-            help="Export to /app/exports (mounted to host) for easy verification",
+            help="Export to gyro_example/exports (mounted to host) for easy verification",
         )
 
     def handle(self, *args, **options):
         tenant_id = options["tenant_id"]
 
         if options["use_host_volume"]:
-            output_dir = "/app/exports"
+            output_dir = "/app/src/example/gyro_example/exports"
         else:
             output_dir = options["output_dir"]
 
@@ -215,8 +215,8 @@ class Command(BaseCommand):
         self.stdout.write("   ✅ Progress tracking")
 
         if options["use_host_volume"]:
-            self.stdout.write("\n💡 Files exported to /app/exports (mounted to host)")
-            self.stdout.write("   You can view them from your host machine in the project directory")
+            self.stdout.write("\n💡 Files exported to gyro_example/exports (mounted to host)")
+            self.stdout.write("   You can view them from your host machine in src/example/gyro_example/exports/")
         else:
             self.stdout.write(f"\n💡 Files exported to {output_dir}")
             self.stdout.write("   Use --use-host-volume to export to a host-mounted directory")

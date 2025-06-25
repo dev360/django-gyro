@@ -37,7 +37,6 @@ services:
     volumes:
       - ..:/app
       - ../src/django_gyro:/usr/local/lib/python3.10/site-packages/django_gyro
-      - ../exports:/app/exports
     restart: "no"
     dns_search: .
     extra_hosts:
