@@ -1,5 +1,5 @@
 from django_gyro import Importer
-from gyro_example.models import Tenant, Site, Customer, Order, OrderItem
+from gyro_example.models import Customer, Site, Tenant
 
 
 class TenantImporter(Importer):
@@ -11,20 +11,19 @@ class TenantImporter(Importer):
 
 class SiteImporter(Importer):
     model = Site
-    
+
     class Columns:
         tenant = Tenant
 
 
 class CustomerImporter(Importer):
     model = Customer
-    
+
     class Columns:
-        site = Site 
+        site = Site
 
 
 class OrderImporter(Importer):
-
     class Columns:
         tenant = Tenant
         site = Site

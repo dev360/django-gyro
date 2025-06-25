@@ -19,10 +19,10 @@ would execute that sampling differently for each job:
   - `ImportJob(model=Customer, query=customers)`,
   - `ImportJob(model=Order, query=orders)`
 
-In the code above, when it generates the first file, e.g. `accounts_customer.csv`, it 
+In the code above, when it generates the first file, e.g. `accounts_customer.csv`, it
 would randomly pull `n` customers, which would have to be implemented with a
 `ORDER BY RANDOM() LIMIT n`, then when it tries to get the query for the `Order` file
-`orders_order.csv` then it would again do a sample of customers `n` which would not 
+`orders_order.csv` then it would again do a sample of customers `n` which would not
 be the same customer ids that were initially pulled.
 
 The solution to this, is of course if we instead had a way to define:
@@ -43,8 +43,8 @@ incorporate them into a django query that it copies, then adds
 `.filter(customer_id__in=[list of actual ids])`.
 
 For any subsequent query, say to `OrderItem`, it needs to do the same thing, e.g. expressing
-the query in a way where it grabs `OrderItem`s that belong to that list of actual customer 
-ids that came from the `accounts_customer.csv` file. It may also need to batch if you are 
+the query in a way where it grabs `OrderItem`s that belong to that list of actual customer
+ids that came from the `accounts_customer.csv` file. It may also need to batch if you are
 sampling a very large number that does not fit well into a query / memory.
 
 ### Faking of data
@@ -59,7 +59,7 @@ fake = Faker()
 
 class CustomerImporter(..):
     class Columns:
-        site = Site 
+        site = Site
         first_name = fake.first_name
         last_name = fake.last_name
         email = fake.email

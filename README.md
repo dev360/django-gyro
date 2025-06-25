@@ -30,19 +30,19 @@ from myapp.models import Tenant, Shop, Customer, Product, Order
 
 class TenantImporter(Importer):
     model = Tenant
-    
+
     class Columns:
         pass
 
 class ShopImporter(Importer):
     model = Shop
-    
+
     class Columns:
         tenant = Tenant
 
 class CustomerImporter(Importer):
     model = Customer
-    
+
     class Columns:
         shop = Shop
         tenant = Tenant

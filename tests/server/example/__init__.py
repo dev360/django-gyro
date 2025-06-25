@@ -1,1 +1,1 @@
-# Test Django project for django-gyro 
+# Test Django project for django-gyro

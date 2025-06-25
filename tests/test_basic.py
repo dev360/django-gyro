@@ -9,4 +9,5 @@ def test_basic_functionality():
 def test_django_gyro_can_be_imported():
     """Test that we can import our package."""
     import django_gyro
-    assert django_gyro is not None 
+
+    assert django_gyro is not None

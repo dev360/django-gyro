@@ -15,16 +15,16 @@ erDiagram
     Tenant ||--o{ Product : "has many"
     Tenant ||--o{ Order : "has many"
     Tenant ||--o{ OrderItem : "has many"
-    
+
     Shop ||--o{ Customer : "has many"
     Shop ||--o{ Product : "has many"
     Shop ||--o{ Order : "has many"
     Shop ||--o{ OrderItem : "has many"
-    
+
     Customer ||--o{ Order : "places many"
-    
+
     Product ||--o{ OrderItem : "appears in many"
-    
+
     Order ||--o{ OrderItem : "contains many"
 ```
 
@@ -61,7 +61,7 @@ class Customer(models.Model):
     last_name = models.CharField(max_length=100)
     phone = models.CharField(max_length=20, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         unique_together = ['shop', 'email']
 
@@ -76,7 +76,7 @@ class Product(models.Model):
     inventory_count = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         unique_together = ['shop', 'sku']
 
@@ -89,7 +89,7 @@ class Order(models.Model):
         ('delivered', 'Delivered'),
         ('cancelled', 'Cancelled'),
     ]
-    
+
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     shop = models.ForeignKey(Shop, on_delete=models.CASCADE)
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
@@ -99,7 +99,7 @@ class Order(models.Model):
     tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     shipping_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         unique_together = ['shop', 'order_number']
 
@@ -131,7 +131,7 @@ need to have an `Importer` definition like this:
 ```python
 # gyro_example/importers.py
 
-# You can place this anywhere, but its needed to run the 
+# You can place this anywhere, but its needed to run the
 # import / exports later.
 
 from django_gyro import Importer
@@ -145,15 +145,15 @@ class TenantImporter(Importer):
 
 class SiteImporter(Importer):
     model = Site
-    
+
     class Columns:
         tenant = Tenant
 
 class CustomerImporter(Importer):
     model = Customer
-    
+
     class Columns:
-        site = Site 
+        site = Site
 
 class OrderImporter(Importer)
 
@@ -181,7 +181,7 @@ So now picture that you have your e-commerce project models, you have your impor
 `TenantImporter`, `SiteImporter`, `CustomerImporter`, `ProductImporter`, `OrderImporter`.
 
 Next, you would want to be able to generate a postgres query that would be able to sample the data
-and export it to csv. 
+and export it to csv.
 
 The key to the sampling the data is this:
 - For some relationships, you may not want to sample; you may want for instance a specific tenant and shop
@@ -238,7 +238,7 @@ and it should prompt the user to pass in the `overwrite=True` parameter to the `
 class.
 
 ## Data export under the hood:
-Internally, when you call `.run`, the DataSlicer class looks at each ImportJob, which 
+Internally, when you call `.run`, the DataSlicer class looks at each ImportJob, which
 and it will look up that the `model` has a defined importer inside the `mystore_importer`
 module.
 
@@ -261,13 +261,13 @@ def run(self, source, target):
 
 ```
 
-Internally, the `.download_file` command uses the Django query to simply do equivalent of 
-`sql_query = str(self.query.query)` this will query from django without executing it yet, 
+Internally, the `.download_file` command uses the Django query to simply do equivalent of
+`sql_query = str(self.query.query)` this will query from django without executing it yet,
 and then it will construct a proper `COPY (your query)  TO STDOOUT WITH (FORMAT CSV, HEADER)`
-command which gets executed by the `psycopg2.cursor.copy_expert(sql_query, file_buffer)` 
+command which gets executed by the `psycopg2.cursor.copy_expert(sql_query, file_buffer)`
 function against the database_url that was passed into the `DataSlicer.Postgres` function.
 
-To elaborate a little bit more, the resulting copy statements would be _conceptually_ 
+To elaborate a little bit more, the resulting copy statements would be _conceptually_
 equivalent to this, except its of course going to STDOUT and getting written to disk:
 
 ```
@@ -278,11 +278,11 @@ equivalent to this, except its of course going to STDOUT and getting written to 
   COPY (SELECT * FROM accounts_site WHERE tenant_id = 1 AND site_id in (10, 11, 12)) TO '/tmp/accounts_site.csv' WITH (FORMAT CSV, HEADER);
 ```
 
-``` 
+```
   COPY (
-    SELECT * FROM products_product 
-    WHERE 
-      tenant_id = 1 AND 
+    SELECT * FROM products_product
+    WHERE
+      tenant_id = 1 AND
       site_id IN (
         10, 11, 12
       )
@@ -337,8 +337,7 @@ equivalent to this, except its of course going to STDOUT and getting written to 
     ) TO '/tmp/orders_orderitem.csv' WITH (FORMAT CSV, HEADER);
 ```
 
-While the command its running, the command should output tqdm.notebook.tqdm  progress bars to show 
+While the command its running, the command should output tqdm.notebook.tqdm  progress bars to show
 the progress while its downloading the files to the local environment.
 
 It should be downloading each file sequentially in the order of the ImportJobs.
-
