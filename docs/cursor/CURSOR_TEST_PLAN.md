@@ -6,7 +6,7 @@
 - **Django 4.2.23** with `example.settings` ✅
 - **pytest + pytest-django** working correctly ✅  
 - **django_gyro package** importable ✅
-- **Baseline**: 2 basic tests passing ✅
+- **Baseline**: 23 tests passing ✅
 
 **Command to run tests**: `source venv/bin/activate && pytest tests/ -v`
 
@@ -35,26 +35,26 @@ This test plan ensures comprehensive coverage of both positive and negative scen
 
 ## Test Plan
 
-### Phase 1: Core Importer Framework
+### Phase 1: Core Importer Framework ✅ COMPLETE
 
 #### `describe Importer`
 | Method/Property | Test Scenarios | Status |
 |-----------------|----------------|---------|
-| `__init__` | - Validates model attribute exists<br>- Registers importer in global registry<br>- Raises error for duplicate model registration | ⚫ |
-| `model` (class attribute) | - Valid Django model classes<br>- Invalid non-model classes<br>- Missing model attribute | ⚫ |
-| `get_file_name()` | - Generates correct CSV filename from model<br>- Handles model name edge cases<br>- Ensures consistent naming | ⚫ |
+| `__init__` | - Validates model attribute exists<br>- Registers importer in global registry<br>- Raises error for duplicate model registration | 🟢 |
+| `model` (class attribute) | - Valid Django model classes<br>- Invalid non-model classes<br>- Missing model attribute | 🟢 |
+| `get_file_name()` | - Generates correct CSV filename from model<br>- Handles model name edge cases<br>- Ensures consistent naming | 🟢 |
 
 #### `describe Importer.Columns`
 | Method/Property | Test Scenarios | Status |
 |-----------------|----------------|---------|
-| Field validation | - Valid foreign key field references<br>- Invalid field names<br>- Missing required FK relationships | ⚫ |
-| Registry lookup | - Finds referenced model importers<br>- Handles missing importer definitions<br>- Validates relationship consistency | ⚫ |
+| Field validation | - Valid foreign key field references<br>- Invalid field names<br>- Missing required FK relationships | 🟢 |
+| Registry lookup | - Finds referenced model importers<br>- Handles missing importer definitions<br>- Validates relationship consistency | 🟢 |
 
 #### `describe Importer Registry`
 | Method/Property | Test Scenarios | Status |
 |-----------------|----------------|---------|
-| `get_importer_for_model()` | - Finds importer by model class<br>- Returns None for unregistered models<br>- Handles model inheritance | ⚫ |
-| Registry cleanup | - Clears registry between tests<br>- Prevents test pollution<br>- Handles registration conflicts | ⚫ |
+| `get_importer_for_model()` | - Finds importer by model class<br>- Returns None for unregistered models<br>- Handles model inheritance | 🟢 |
+| Registry cleanup | - Clears registry between tests<br>- Prevents test pollution<br>- Handles registration conflicts | 🟢 |
 
 ### Phase 2: ImportJob Definition
 
