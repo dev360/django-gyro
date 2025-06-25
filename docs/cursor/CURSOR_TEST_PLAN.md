@@ -111,18 +111,18 @@ This test plan ensures comprehensive coverage of both positive and negative scen
 #### `describe PostgresImport`
 | Method/Property | Test Scenarios | Status |
 |-----------------|----------------|---------|
-| CSV parsing | - Parses CSV headers correctly<br>- Maps columns to model fields<br>- Handles missing columns | ⚫ |
-| Data validation | - Validates data types<br>- Checks required fields<br>- Custom model validation | ⚫ |
-| Foreign key resolution | - Resolves FK references<br>- Handles missing FK targets<br>- Multi-level FK chains | ⚫ |
-| Constraint handling | - Unique constraint violations<br>- Database constraint errors<br>- Transaction rollbacks | ⚫ |
+| CSV parsing | - Parses CSV headers correctly<br>- Maps columns to model fields<br>- Handles missing columns | 🟢 |
+| Data validation | - Validates data types<br>- Checks required fields<br>- Custom model validation | 🟢 |
+| Foreign key resolution | - Resolves FK references<br>- Handles missing FK targets<br>- Multi-level FK chains | 🟢 |
+| Constraint handling | - Unique constraint violations<br>- Database constraint errors<br>- Transaction rollbacks | 🟢 |
 
 #### `describe FK Dependency Validation`
 | Method/Property | Test Scenarios | Status |
 |-----------------|----------------|---------|
-| Missing FK target detection | - Validates FK IDs exist in target tables<br>- Reports missing FK references before import<br>- Suggests required import order | ⚫ |
-| Cyclical relationship detection | - Detects circular FK dependencies<br>- Reports Asset↔AssetRisk type cycles<br>- Prevents import when cycles detected | ⚫ |
-| Excluded columns support | - `excluded = ['risk_id']` property on Importer<br>- Excludes columns from import only (not export)<br>- Validates excluded columns are FK fields | ⚫ |
-| Pre-import validation | - Validates all FK dependencies before data movement<br>- Errors on cyclical deps without exclusions<br>- Logs detailed FK validation reports | ⚫ |
+| Missing FK target detection | - Validates FK IDs exist in target tables<br>- Reports missing FK references before import<br>- Suggests required import order | 🟢 |
+| Cyclical relationship detection | - Detects circular FK dependencies<br>- Reports Asset↔AssetRisk type cycles<br>- Prevents import when cycles detected | 🟢 |
+| Excluded columns support | - `excluded = ['risk_id']` property on Importer<br>- Excludes columns from import only (not export)<br>- Validates excluded columns are FK fields | 🟢 |
+| Pre-import validation | - Validates all FK dependencies before data movement<br>- Errors on cyclical deps without exclusions<br>- Logs detailed FK validation reports | 🟢 |
 
 ### Phase 6: Integration Workflows
 
