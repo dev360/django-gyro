@@ -34,6 +34,7 @@ tqdm = "^4.66"
 pytest = "^8.3"
 pytest-django = "^4.9"
 tox = "^4.21"
+faker = "^37.0"
 
 [tool.poetry.group.dev.dependencies]
 python-semantic-release = "^8.7"
@@ -88,6 +89,10 @@ addopts = """\
 pythonpath = "tests/server"
 django_find_project = false
 markers = ["asyncio: mark test as async/await test"]
+filterwarnings = [
+    "ignore::UserWarning:django_gyro.core",
+    "ignore:Model.*was already registered.*:RuntimeWarning",
+]
 
 [tool.pytest-asyncio]
 asyncio_mode = "auto"
