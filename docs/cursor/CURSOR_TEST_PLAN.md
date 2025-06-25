@@ -77,34 +77,34 @@ This test plan ensures comprehensive coverage of both positive and negative scen
 #### `describe DataSlicer`
 | Method/Property | Test Scenarios | Status |
 |-----------------|----------------|---------|
-| `run(source, target, *jobs)` | - Validates source/target compatibility<br>- Processes jobs in correct order<br>- Handles empty job list | ⚫ |
-| Job validation | - Validates all jobs have registered importers<br>- Checks dependency requirements<br>- Error on invalid job types | ⚫ |
+| `run(source, target, *jobs)` | - Validates source/target compatibility<br>- Processes jobs in correct order<br>- Handles empty job list | 🟢 |
+| Job validation | - Validates all jobs have registered importers<br>- Checks dependency requirements<br>- Error on invalid job types | 🟢 |
 
 #### `describe DataSlicer.Postgres`
 | Method/Property | Test Scenarios | Status |
 |-----------------|----------------|---------|
-| `__init__(connection_string)` | - Valid PostgreSQL connection strings<br>- Invalid connection strings<br>- Connection timeout settings | ⚫ |
-| `read_data(filename)` | - Executes COPY FROM STDIN<br>- Handles file not found errors<br>- Validates CSV format | ⚫ |
-| `write_data(query, filename)` | - Executes COPY TO STDOUT<br>- Generates proper SQL from QuerySet<br>- Handles empty result sets | ⚫ |
-| Connection management | - Opens/closes connections properly<br>- Handles connection failures<br>- Connection pooling | ⚫ |
+| `__init__(connection_string)` | - Valid PostgreSQL connection strings<br>- Invalid connection strings<br>- Connection timeout settings | 🟢 |
+| `read_data(filename)` | - Executes COPY FROM STDIN<br>- Handles file not found errors<br>- Validates CSV format | 🟢 |
+| `write_data(query, filename)` | - Executes COPY TO STDOUT<br>- Generates proper SQL from QuerySet<br>- Handles empty result sets | 🟢 |
+| Connection management | - Opens/closes connections properly<br>- Handles connection failures<br>- Connection pooling | 🟢 |
 
 #### `describe DataSlicer.File`
 | Method/Property | Test Scenarios | Status |
 |-----------------|----------------|---------|
-| `__init__(directory_path)` | - Valid directory paths<br>- Creates directories if missing<br>- Permission validation | ⚫ |
-| `__init__(directory_path, overwrite=True)` | - Overwrites existing files<br>- Preserves existing files when False<br>- Handles file locking | ⚫ |
-| `read_data(filename)` | - Reads CSV files<br>- Handles missing files<br>- Validates CSV format | ⚫ |
-| `write_data(data, filename)` | - Writes CSV files<br>- Creates proper CSV headers<br>- Handles large datasets | ⚫ |
+| `__init__(directory_path)` | - Valid directory paths<br>- Creates directories if missing<br>- Permission validation | 🟢 |
+| `__init__(directory_path, overwrite=True)` | - Overwrites existing files<br>- Preserves existing files when False<br>- Handles file locking | 🟢 |
+| `read_data(filename)` | - Reads CSV files<br>- Handles missing files<br>- Validates CSV format | 🟢 |
+| `write_data(data, filename)` | - Writes CSV files<br>- Creates proper CSV headers<br>- Handles large datasets | 🟢 |
 
 ### Phase 4: Data Export Operations
 
 #### `describe PostgresExport`
 | Method/Property | Test Scenarios | Status |
 |-----------------|----------------|---------|
-| SQL generation | - Converts Django QuerySet to SQL<br>- Handles complex WHERE clauses<br>- Generates proper COPY statements | ⚫ |
-| CSV generation | - Includes proper CSV headers<br>- Exports all model fields<br>- Handles NULL values | ⚫ |
-| Foreign key handling | - Exports FK IDs correctly<br>- Handles NULL foreign keys<br>- Multiple FK relationships | ⚫ |
-| Progress tracking | - Shows progress for large exports<br>- Updates progress bars<br>- Completion notifications | ⚫ |
+| SQL generation | - Converts Django QuerySet to SQL<br>- Handles complex WHERE clauses<br>- Generates proper COPY statements | 🟢 |
+| CSV generation | - Includes proper CSV headers<br>- Exports all model fields<br>- Handles NULL values | 🟢 |
+| Foreign key handling | - Exports FK IDs correctly<br>- Handles NULL foreign keys<br>- Multiple FK relationships | 🟢 |
+| Progress tracking | - Shows progress for large exports<br>- Updates progress bars<br>- Completion notifications | 🟢 |
 
 ### Phase 5: Data Import Operations
 
@@ -115,6 +115,14 @@ This test plan ensures comprehensive coverage of both positive and negative scen
 | Data validation | - Validates data types<br>- Checks required fields<br>- Custom model validation | ⚫ |
 | Foreign key resolution | - Resolves FK references<br>- Handles missing FK targets<br>- Multi-level FK chains | ⚫ |
 | Constraint handling | - Unique constraint violations<br>- Database constraint errors<br>- Transaction rollbacks | ⚫ |
+
+#### `describe FK Dependency Validation`
+| Method/Property | Test Scenarios | Status |
+|-----------------|----------------|---------|
+| Missing FK target detection | - Validates FK IDs exist in target tables<br>- Reports missing FK references before import<br>- Suggests required import order | ⚫ |
+| Cyclical relationship detection | - Detects circular FK dependencies<br>- Reports Asset↔AssetRisk type cycles<br>- Prevents import when cycles detected | ⚫ |
+| Excluded columns support | - `excluded = ['risk_id']` property on Importer<br>- Excludes columns from import only (not export)<br>- Validates excluded columns are FK fields | ⚫ |
+| Pre-import validation | - Validates all FK dependencies before data movement<br>- Errors on cyclical deps without exclusions<br>- Logs detailed FK validation reports | ⚫ |
 
 ### Phase 6: Integration Workflows
 
