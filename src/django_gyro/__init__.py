@@ -8,6 +8,17 @@ with proper dependency handling and flexible configuration.
 from .core import DataSlicer, Importer, ImportJob
 from .exporters import PostgresExporter
 from .importers import FKDependencyValidator, PostgresImporter
+from .sources import PostgresSource
+from .targets import FileTarget
 
 __version__ = "0.1.0"
-__all__ = ["Importer", "ImportJob", "DataSlicer", "PostgresExporter", "PostgresImporter", "FKDependencyValidator"]
+__all__ = [
+    "Importer",
+    "ImportJob",
+    "DataSlicer",
+    "PostgresExporter",
+    "PostgresImporter",
+    "FKDependencyValidator",
+    "PostgresSource",
+    "FileTarget",
+]

@@ -528,3 +528,169 @@ class DataSlicer:
             files_created.append(filepath)
 
         return {"files_created": files_created, "jobs_executed": len(jobs)}
+
+    @classmethod
+    def run(cls, *, source, target, jobs, progress_callback=None, use_notebook_progress=False):
+        """
+        Execute complete ETL workflow from source to target.
+
+        This is the main entry point for the DataSlicer as described in the technical design.
+        It orchestrates the entire process of extracting data from a source (like PostgreSQL)
+        and writing it to a target (like file system).
+
+        Args:
+            source: Source instance (e.g., PostgresSource)
+            target: Target instance (e.g., FileTarget)
+            jobs: List of ImportJob instances defining what data to extract
+            progress_callback: Optional callback for progress updates
+            use_notebook_progress: Whether to use notebook-style progress bars
+
+        Returns:
+            Dict with execution results
+        """
+        from .sources import PostgresSource
+        from .targets import FileTarget
+
+        # Validate arguments
+        if not jobs:
+            raise ValueError("At least one ImportJob must be provided")
+
+        if not isinstance(jobs, (list, tuple)):
+            raise TypeError("jobs must be a list or tuple of ImportJob instances")
+
+        # Convert to list and sort by dependencies
+        jobs_list = list(jobs)
+        sorted_jobs = ImportJob.sort_by_dependencies(jobs_list)
+
+        # Setup progress tracking
+        if use_notebook_progress:
+            try:
+                from tqdm.notebook import tqdm
+            except ImportError:
+                from tqdm import tqdm
+        else:
+            try:
+                from tqdm import tqdm
+            except ImportError:
+                # Fallback if tqdm not available
+                class tqdm:
+                    def __init__(self, *args, **kwargs):
+                        self.total = kwargs.get("total", 0)
+                        self.current = 0
+
+                    def update(self, n=1):
+                        self.current += n
+                        if progress_callback:
+                            progress_callback(self.current, self.total)
+
+                    def close(self):
+                        pass
+
+                    def __enter__(self):
+                        return self
+
+                    def __exit__(self, *args):
+                        pass
+
+        files_created = []
+        total_rows_exported = 0
+
+        # Execute jobs with progress tracking
+        with tqdm(total=len(sorted_jobs), desc="Exporting data") as pbar:
+            for job in sorted_jobs:
+                # Find importer for this model
+                importer = Importer.get_importer_for_model(job.model)
+                if not importer:
+                    raise ValueError(f"No importer found for model {job.model.__name__}")
+
+                # Generate filename
+                filename = importer.get_file_name()
+
+                # Execute based on source type
+                if isinstance(source, PostgresSource):
+                    # Use PostgreSQL COPY operation
+                    query = job.query if job.query is not None else job.model.objects.all()
+
+                    # Create temporary file for this export
+                    import tempfile
+
+                    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as temp_file:
+                        temp_path = temp_file.name
+
+                    try:
+                        # Export from PostgreSQL
+                        export_result = source.export_queryset(query, temp_path)
+
+                        # Copy to target
+                        if isinstance(target, FileTarget):
+                            copy_result = target.copy_file_from_source(temp_path, filename)
+                            files_created.append(copy_result["target_path"])
+
+                        total_rows_exported += export_result.get("rows_exported", 0)
+
+                        # Call progress callback if provided
+                        if progress_callback:
+                            progress_callback(
+                                {
+                                    "job": job,
+                                    "file_created": filename,
+                                    "rows_exported": export_result.get("rows_exported", 0),
+                                    "file_size": export_result.get("file_size", 0),
+                                }
+                            )
+
+                    finally:
+                        # Clean up temporary file
+                        import os
+
+                        if os.path.exists(temp_path):
+                            os.unlink(temp_path)
+
+                else:
+                    raise ValueError(f"Unsupported source type: {type(source)}")
+
+                # Update progress bar
+                pbar.update(1)
+
+        return {
+            "jobs_executed": len(sorted_jobs),
+            "files_created": files_created,
+            "total_rows_exported": total_rows_exported,
+            "source_type": type(source).__name__,
+            "target_type": type(target).__name__,
+        }
+
+    @classmethod
+    def Postgres(cls, connection_string: str):
+        """
+        Create a PostgresSource instance.
+
+        This is a convenience method to match the API described in the technical design.
+
+        Args:
+            connection_string: PostgreSQL connection string
+
+        Returns:
+            PostgresSource instance
+        """
+        from .sources import PostgresSource
+
+        return PostgresSource(connection_string)
+
+    @classmethod
+    def File(cls, base_path: str, overwrite: bool = False):
+        """
+        Create a FileTarget instance.
+
+        This is a convenience method to match the API described in the technical design.
+
+        Args:
+            base_path: Base directory path for files
+            overwrite: Whether to overwrite existing files
+
+        Returns:
+            FileTarget instance
+        """
+        from .targets import FileTarget
+
+        return FileTarget(base_path, overwrite=overwrite)

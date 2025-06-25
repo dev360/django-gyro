@@ -52,8 +52,12 @@ TEMPLATES = [
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": environ.get("POSTGRES_DB", "gyro_example"),
+        "USER": environ.get("POSTGRES_USER", "gyro_user"),
+        "PASSWORD": environ.get("POSTGRES_PASSWORD", "gyro_password"),
+        "HOST": environ.get("POSTGRES_HOST", "gyro_db"),
+        "PORT": environ.get("POSTGRES_PORT", "5432"),
     }
 }
 

@@ -27,6 +27,8 @@ classifiers = [
 [tool.poetry.dependencies]
 python = ">=3.9"
 django = ">=3.2"
+psycopg2-binary = "^2.9"
+tqdm = "^4.66"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.3"
