@@ -68,7 +68,7 @@ class Command(BaseCommand):
 
             tenant = Tenant.objects.create(
                 name=company_name,
-                subdomain=subdomain,
+                subdomain=subdomain[:50],
                 is_active=random.choice([True, True, True, False]),  # 75% active
             )
             tenants.append(tenant)
@@ -122,7 +122,7 @@ class Command(BaseCommand):
                 product_name = f"{fake.color_name().title()} {random.choice(product_types)}"
 
                 # Generate unique SKU
-                sku = f"{fake.random_letters(3).upper()}{fake.random_number(digits=4)}"
+                sku = f"{''.join(fake.random_letters(3)).upper()}{fake.random_number(digits=4)}"
                 counter = 1
                 original_sku = sku
                 while Product.objects.filter(shop=shop, sku=sku).exists():
@@ -158,13 +158,15 @@ class Command(BaseCommand):
                     email = f"{first_name.lower()}.{last_name.lower()}{counter}@{fake.domain_name()}"
                     counter += 1
 
+                phone = fake.phone_number()[:20]
+
                 customer = Customer.objects.create(
                     tenant=shop.tenant,
                     shop=shop,
                     email=email,
                     first_name=first_name,
                     last_name=last_name,
-                    phone=fake.phone_number() if random.choice([True, False]) else "",
+                    phone=phone,
                 )
                 customers.append(customer)
         return customers

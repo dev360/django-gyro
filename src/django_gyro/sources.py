@@ -57,13 +57,12 @@ class PostgresSource:
         sql, params = queryset.query.sql_with_params()
 
         # Substitute parameters into the SQL
-        # This is a simplified approach - in production you'd want more robust parameter handling
         if params:
-            # Convert parameters to appropriate format for PostgreSQL
             formatted_params = []
             for param in params:
                 if isinstance(param, str):
-                    formatted_params.append(f"'{param.replace("'", "''")}'")
+                    # Use repr to escape single quotes
+                    formatted_params.append(repr(param))
                 elif isinstance(param, bool):
                     formatted_params.append("true" if param else "false")
                 elif param is None:
@@ -71,7 +70,7 @@ class PostgresSource:
                 else:
                     formatted_params.append(str(param))
 
-            # Simple parameter substitution (in production, use proper parameterized queries)
+            # Substitute parameters into SQL
             for formatted_param in formatted_params:
                 sql = sql.replace("%s", formatted_param, 1)
 

@@ -26,7 +26,9 @@ services:
         echo 'Waiting for services to be ready...' &&
         sleep 10 &&
         python src/example/manage.py migrate &&
-        python src/example/manage.py load_fake_data
+        python src/example/manage.py load_fake_data &&
+        python src/example/manage.py shell -c \"from django.contrib.auth import get_user_model; User = get_user_model(); User.objects.filter(username='admin').exists() or User.objects.create_superuser('admin', 'admin@example.com', 'adminpass')\" &&
+        python src/example/manage.py runserver 0.0.0.0:8000
       "
     depends_on:
       - gyro_db
