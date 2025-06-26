@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "django-gyro"
-version = "0.0.1"
+version = "0.1.0"
 description = "Django Gyro"
 license = "BSD-3-Clause"
 readme = "README.md"
