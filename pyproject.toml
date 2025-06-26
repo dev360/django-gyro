@@ -65,6 +65,10 @@ tag_format = "{version}"
 major_on_zero = true
 version_toml = ["pyproject.toml:tool.poetry.version"]
 
+[tool.semantic_release.remote]
+name = "origin"
+type = "github"
+
 [tool.semantic_release.changelog]
 template_dir = ".github/templates"
 exclude_commit_patterns = [
