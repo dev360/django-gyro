@@ -1,0 +1,60 @@
+version: "3.8"
+
+services:
+  gyro_db:
+    image: postgres:15
+    container_name: gyro_db
+    environment:
+      POSTGRES_DB: gyro_example
+      POSTGRES_USER: gyro_user
+      POSTGRES_PASSWORD: gyro_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - gyro_data:/var/lib/postgresql/data
+    networks:
+      - test-network
+    restart: unless-stopped
+
+  gyro_example:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    container_name: gyro_example
+    command: >
+      bash -c "
+        echo 'Waiting for services to be ready...' &&
+        sleep 10 &&
+        python src/example/manage.py migrate &&
+        python src/example/manage.py load_fake_data &&
+        python src/example/manage.py shell -c \"from django.contrib.auth import get_user_model; User = get_user_model(); User.objects.filter(username='admin').exists() or User.objects.create_superuser('admin', 'admin@example.com', 'adminpass')\" &&
+        python src/example/manage.py runserver 0.0.0.0:8000
+      "
+    depends_on:
+      - gyro_db
+    ports:
+      - "8000:8000"
+    networks:
+      - test-network
+    volumes:
+      - ..:/app
+      - ../src/django_gyro:/usr/local/lib/python3.10/site-packages/django_gyro
+    restart: "no"
+    dns_search: .
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - DATABASE_URL=postgresql://gyro_user:gyro_password@gyro_db:5432/gyro_example
+      - POSTGRES_DB=gyro_example
+      - POSTGRES_USER=gyro_user
+      - POSTGRES_PASSWORD=gyro_password
+      - POSTGRES_HOST=gyro_db
+      - POSTGRES_PORT=5432
+
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  gyro_data:
