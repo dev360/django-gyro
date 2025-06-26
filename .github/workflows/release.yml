@@ -10,6 +10,7 @@ jobs:
     permissions:
       id-token: write
       contents: write
+      packages: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -23,6 +24,10 @@ jobs:
         run: |
           pip install poetry==1.8
           poetry install
+      - name: Check semantic-release version
+        run: poetry run semantic-release version --print
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Release
         run: |
           poetry run semantic-release version
