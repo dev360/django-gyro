@@ -21,8 +21,7 @@ from django.core.management.base import BaseCommand
 from django.db import connection
 
 from django_gyro import DataSlicer, ImportJob
-from gyro_example.models import Customer, Order, OrderItem, Product, Shop, Tenant
-from gyro_example.importers import *
+from gyro_example.importers import Customer, Order, OrderItem, Product, Shop, Tenant
 
 
 class Command(BaseCommand):
