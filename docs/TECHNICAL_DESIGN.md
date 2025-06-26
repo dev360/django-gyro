@@ -210,12 +210,14 @@ import_jobs = DataSlicer.run(
     target=DataSlicer.File(
        '/mnt/data/dev-qa-org-1',
     ),
-    ImportJob(model=Tenant, query=tenant),
-    ImportJob(model=Site, query=sites),
-    ImportJob(model=Product, query=products),
-    ImportJob(model=Customer, query=customers),
-    ImportJob(model=Order, query=orders),
-    ImportJob(model=OrderItem, query=order_items),
+    jobs=[
+      ImportJob(model=Tenant, query=tenant),
+      ImportJob(model=Site, query=sites),
+      ImportJob(model=Product, query=products),
+      ImportJob(model=Customer, query=customers),
+      ImportJob(model=Order, query=orders),
+      ImportJob(model=OrderItem, query=order_items),
+    ],
 )
 ```
 
