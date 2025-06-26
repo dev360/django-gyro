@@ -62,9 +62,11 @@ customers = Customer.objects.filter(shop__in=shops)
 DataSlicer.run(
     source=DataSlicer.Postgres(database_url),
     target=DataSlicer.File('/path/to/export/'),
-    ImportJob(model=Tenant, query=tenant),
-    ImportJob(model=Shop, query=shops),
-    ImportJob(model=Customer, query=customers),
+    jobs=[
+      ImportJob(model=Tenant, query=tenant),
+      ImportJob(model=Shop, query=shops),
+      ImportJob(model=Customer, query=customers),
+   ],
 )
 ```
 
@@ -75,9 +77,11 @@ DataSlicer.run(
 DataSlicer.run(
     source=DataSlicer.File('/path/to/import/'),
     target=DataSlicer.Postgres(database_url),
-    ImportJob(model=Tenant),
-    ImportJob(model=Shop),
-    ImportJob(model=Customer),
+    jobs=[
+      ImportJob(model=Tenant),
+      ImportJob(model=Shop),
+      ImportJob(model=Customer),
+    ],
 )
 ```
 
