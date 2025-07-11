@@ -8,7 +8,10 @@ with proper dependency handling and flexible configuration.
 from .core import DataSlicer, Importer, ImportJob
 from .exporters import PostgresExporter
 from .importers import FKDependencyValidator, PostgresImporter
-from .importing import ImportContext, ImportPlan, ExportPlan, IdRemappingStrategy, SequentialRemappingStrategy
+from .importing import (
+    ImportContext, ImportPlan, ExportPlan, IdRemappingStrategy, 
+    SequentialRemappingStrategy, HashBasedRemappingStrategy, NoRemappingStrategy
+)
 from .sources import PostgresSource
 from .targets import FileTarget
 
@@ -27,4 +30,6 @@ __all__ = [
     "ExportPlan",
     "IdRemappingStrategy",
     "SequentialRemappingStrategy",
+    "HashBasedRemappingStrategy",
+    "NoRemappingStrategy",
 ]
