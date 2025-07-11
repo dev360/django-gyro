@@ -29,6 +29,7 @@ python = ">=3.9"
 django = ">=3.2"
 psycopg2-binary = "^2.9"
 tqdm = "^4.66"
+pandas = "^2.0"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.3"

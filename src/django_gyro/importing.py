@@ -80,8 +80,92 @@ class SequentialRemappingStrategy(IdRemappingStrategy):
     
     def generate_mapping(self, source_ids: Any, target_db: Any) -> Dict[int, int]:
         """Generate sequential ID mappings."""
-        # Implementation will be added when we implement this class
-        pass
+        import pandas as pd
+        
+        # Convert to pandas Series if needed
+        if not isinstance(source_ids, pd.Series):
+            source_ids = pd.Series(source_ids)
+        
+        # Get unique source IDs to avoid duplicates
+        unique_source_ids = source_ids.drop_duplicates()
+        
+        # Query database for current MAX(id)
+        with target_db.cursor() as cursor:
+            cursor.execute(f"SELECT COALESCE(MAX(id), 0) FROM {self.model._meta.db_table}")
+            max_id = cursor.fetchone()[0]
+        
+        # Generate sequential mappings
+        mapping = {}
+        next_id = max_id + 1
+        
+        for source_id in unique_source_ids:
+            mapping[source_id] = next_id
+            next_id += 1
+        
+        return mapping
+
+
+class HashBasedRemappingStrategy(IdRemappingStrategy):
+    """Uses deterministic hashing for stable ID generation across imports."""
+    
+    def __init__(self, model, business_key: str):
+        self.model = model
+        self.business_key = business_key
+    
+    def generate_mapping(self, source_data: Any) -> Dict[int, int]:
+        """Generate hash-based ID mappings using business key."""
+        import pandas as pd
+        import hashlib
+        
+        # Ensure we have a DataFrame
+        if not isinstance(source_data, pd.DataFrame):
+            raise ValueError("HashBasedRemappingStrategy requires DataFrame input")
+        
+        # Check if business key exists
+        if self.business_key not in source_data.columns:
+            raise ValueError(f"Business key '{self.business_key}' not found in data")
+        
+        mapping = {}
+        
+        for _, row in source_data.iterrows():
+            source_id = row['id']
+            business_value = row[self.business_key]
+            
+            # Skip empty business values
+            if pd.isna(business_value) or business_value == '':
+                continue
+            
+            # Generate deterministic hash-based ID
+            hash_input = f"{self.model._meta.label}_{business_value}"
+            hash_object = hashlib.md5(hash_input.encode())
+            # Use first 8 bytes of hash as integer (avoid collision in most cases)
+            hash_id = int(hash_object.hexdigest()[:8], 16)
+            
+            # Ensure positive ID
+            if hash_id <= 0:
+                hash_id = abs(hash_id) + 1
+            
+            mapping[source_id] = hash_id
+        
+        return mapping
+
+
+class NoRemappingStrategy(IdRemappingStrategy):
+    """Identity strategy that doesn't remap IDs (leaves them unchanged)."""
+    
+    def __init__(self, model):
+        self.model = model
+    
+    def generate_mapping(self, source_ids: Any, target_db: Any = None) -> Dict[int, int]:
+        """Generate identity mapping (no change)."""
+        import pandas as pd
+        
+        # Convert to pandas Series if needed
+        if not isinstance(source_ids, pd.Series):
+            source_ids = pd.Series(source_ids)
+        
+        # Create identity mapping
+        return {source_id: source_id for source_id in source_ids}
 
 
 @dataclass
