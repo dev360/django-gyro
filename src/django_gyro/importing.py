@@ -168,6 +168,258 @@ class NoRemappingStrategy(IdRemappingStrategy):
         return {source_id: source_id for source_id in source_ids}
 
 
+class PostgresBulkLoader:
+    """
+    Service for high-performance bulk loading of CSV data into PostgreSQL.
+    
+    Uses PostgreSQL's COPY command with staging tables for optimal performance
+    and supports ID remapping during the load process.
+    """
+    
+    def __init__(self):
+        self.batch_size = 10000
+    
+    def load_csv_with_copy(self, model: Type[models.Model], csv_path: Path, 
+                          connection: Any, id_mappings: Optional[Dict[str, Dict[int, int]]] = None,
+                          on_conflict: str = 'raise', cleanup_staging: bool = True) -> Dict[str, Any]:
+        """
+        Load CSV data using PostgreSQL COPY for high performance.
+        
+        Args:
+            model: Django model to load data into
+            csv_path: Path to CSV file
+            connection: Database connection
+            id_mappings: Optional ID remapping dictionary
+            on_conflict: How to handle conflicts ('raise', 'ignore', 'update')
+            cleanup_staging: Whether to clean up staging table after load
+            
+        Returns:
+            Dictionary with load statistics
+        """
+        if not csv_path.exists():
+            raise FileNotFoundError(f"CSV file not found: {csv_path}")
+        
+        staging_table = f"import_staging_{model._meta.db_table}"
+        
+        with connection.cursor() as cursor:
+            try:
+                # Step 1: Create staging table
+                self._create_staging_table(cursor, model)
+                
+                # Step 2: Copy CSV data to staging table
+                self._copy_csv_to_staging(cursor, csv_path, model)
+                
+                # Step 3: Apply ID remapping if provided
+                if id_mappings:
+                    self._apply_id_remappings(cursor, model, staging_table, id_mappings)
+                
+                # Step 4: Insert from staging to target table
+                rows_loaded = self._insert_from_staging(cursor, model, on_conflict)
+                
+                # Step 5: Clean up staging table if requested
+                if cleanup_staging:
+                    self._cleanup_staging_table(cursor, staging_table)
+                
+                return {
+                    'rows_loaded': rows_loaded,
+                    'staging_table': staging_table,
+                    'used_copy': True
+                }
+            
+            except Exception as e:
+                # Clean up staging table on error
+                try:
+                    self._cleanup_staging_table(cursor, staging_table)
+                except:
+                    pass  # Ignore cleanup errors
+                raise e
+    
+    def load_csv_with_insert(self, model: Type[models.Model], csv_path: Path,
+                            connection: Any, batch_size: int = 1000,
+                            id_mappings: Optional[Dict[str, Dict[int, int]]] = None) -> Dict[str, Any]:
+        """
+        Load CSV data using batched INSERT statements (fallback when COPY not available).
+        
+        Args:
+            model: Django model to load data into
+            csv_path: Path to CSV file
+            connection: Database connection
+            batch_size: Number of rows to insert per batch
+            id_mappings: Optional ID remapping dictionary
+            
+        Returns:
+            Dictionary with load statistics
+        """
+        import pandas as pd
+        
+        if not csv_path.exists():
+            raise FileNotFoundError(f"CSV file not found: {csv_path}")
+        
+        # Read CSV in chunks for memory efficiency
+        total_rows = 0
+        
+        with connection.cursor() as cursor:
+            for chunk in pd.read_csv(csv_path, chunksize=batch_size):
+                # Apply ID remapping if provided
+                if id_mappings:
+                    chunk = self._apply_pandas_remapping(chunk, model, id_mappings)
+                
+                # Generate INSERT statements
+                rows_inserted = self._insert_dataframe_batch(cursor, chunk, model)
+                total_rows += rows_inserted
+        
+        return {
+            'rows_loaded': total_rows,
+            'used_copy': False
+        }
+    
+    def load_csv_batch(self, model: Type[models.Model], csv_paths: List[Path],
+                      connection: Any, **kwargs) -> List[Dict[str, Any]]:
+        """Load multiple CSV files in batch."""
+        results = []
+        
+        for csv_path in csv_paths:
+            result = self.load_csv_with_copy(model, csv_path, connection, **kwargs)
+            results.append(result)
+        
+        return results
+    
+    def load_csv_with_context(self, model: Type[models.Model], csv_path: Path,
+                             context: 'ImportContext', connection: Any) -> Dict[str, Any]:
+        """Load CSV using ImportContext configuration."""
+        if context.use_copy:
+            return self.load_csv_with_copy(
+                model=model,
+                csv_path=csv_path,
+                connection=connection,
+                id_mappings=context.id_mapping
+            )
+        else:
+            return self.load_csv_with_insert(
+                model=model,
+                csv_path=csv_path,
+                connection=connection,
+                batch_size=context.batch_size,
+                id_mappings=context.id_mapping
+            )
+    
+    def _create_staging_table(self, cursor: Any, model: Type[models.Model]) -> None:
+        """Create temporary staging table with same structure as target table."""
+        staging_table = f"import_staging_{model._meta.db_table}"
+        
+        sql = f"CREATE TEMP TABLE {staging_table} (LIKE {model._meta.db_table} INCLUDING ALL)"
+        
+        cursor.execute(sql)
+    
+    def _copy_csv_to_staging(self, cursor: Any, csv_path: Path, model: Type[models.Model]) -> None:
+        """Copy CSV data to staging table using PostgreSQL COPY command."""
+        staging_table = f"import_staging_{model._meta.db_table}"
+        
+        copy_sql = f"COPY {staging_table} FROM STDIN WITH CSV HEADER"
+        
+        with open(csv_path, 'r') as f:
+            cursor.copy_expert(copy_sql, f)
+    
+    def _apply_id_remappings(self, cursor: Any, model: Type[models.Model], 
+                           staging_table: str, id_mappings: Dict[str, Dict[int, int]]) -> None:
+        """Apply ID remappings to staging table."""
+        # Remap primary key if needed
+        model_label = f"{model._meta.app_label}.{model.__name__}"
+        if model_label in id_mappings:
+            self._apply_fk_remapping(cursor, staging_table, "id", id_mappings[model_label])
+        
+        # Remap foreign keys
+        for field in model._meta.get_fields():
+            if isinstance(field, models.ForeignKey):
+                related_model = field.related_model
+                related_label = f"{related_model._meta.app_label}.{related_model.__name__}"
+                
+                if related_label in id_mappings:
+                    fk_column = f"{field.name}_id"
+                    self._apply_fk_remapping(cursor, staging_table, fk_column, id_mappings[related_label])
+    
+    def _apply_fk_remapping(self, cursor: Any, staging_table: str, 
+                          column_name: str, mapping: Dict[int, int]) -> None:
+        """Apply foreign key remapping using efficient CASE statement."""
+        if not mapping:
+            return
+        
+        # Build CASE statement for efficient bulk update
+        case_clauses = []
+        for old_id, new_id in mapping.items():
+            case_clauses.append(f"WHEN {column_name} = {old_id} THEN {new_id}")
+        
+        old_ids = ', '.join(str(old_id) for old_id in mapping.keys())
+        
+        sql = f"UPDATE {staging_table} SET {column_name} = CASE {' '.join(case_clauses)} END WHERE {column_name} IN ({old_ids})"
+        
+        cursor.execute(sql)
+    
+    def _insert_from_staging(self, cursor: Any, model: Type[models.Model], 
+                           on_conflict: str = 'raise') -> int:
+        """Insert data from staging table to target table."""
+        staging_table = f"import_staging_{model._meta.db_table}"
+        target_table = model._meta.db_table
+        
+        # Build INSERT statement
+        base_sql = f"INSERT INTO {target_table} SELECT * FROM {staging_table}"
+        
+        if on_conflict == 'ignore':
+            sql = f"{base_sql} ON CONFLICT DO NOTHING"
+        elif on_conflict == 'update':
+            # This would need more sophisticated handling for specific conflicts
+            sql = f"{base_sql} ON CONFLICT DO NOTHING"  # Simplified for now
+        else:
+            sql = base_sql
+        
+        cursor.execute(sql)
+        return cursor.rowcount
+    
+    def _cleanup_staging_table(self, cursor: Any, staging_table: str) -> None:
+        """Clean up staging table."""
+        cursor.execute(f"DROP TABLE IF EXISTS {staging_table}")
+    
+    def _apply_pandas_remapping(self, df: Any, model: Type[models.Model], 
+                              id_mappings: Dict[str, Dict[int, int]]) -> Any:
+        """Apply ID remapping to pandas DataFrame."""
+        # Remap primary key
+        model_label = f"{model._meta.app_label}.{model.__name__}"
+        if model_label in id_mappings and 'id' in df.columns:
+            df['id'] = df['id'].map(id_mappings[model_label]).fillna(df['id'])
+        
+        # Remap foreign keys
+        for field in model._meta.get_fields():
+            if isinstance(field, models.ForeignKey):
+                related_model = field.related_model
+                related_label = f"{related_model._meta.app_label}.{related_model.__name__}"
+                fk_column = f"{field.name}_id"
+                
+                if related_label in id_mappings and fk_column in df.columns:
+                    df[fk_column] = df[fk_column].map(id_mappings[related_label]).fillna(df[fk_column])
+        
+        return df
+    
+    def _insert_dataframe_batch(self, cursor: Any, df: Any, model: Type[models.Model]) -> int:
+        """Insert pandas DataFrame using batch INSERT statements."""
+        if df.empty:
+            return 0
+        
+        # Convert DataFrame to list of tuples
+        values = []
+        for _, row in df.iterrows():
+            values.append(tuple(row.values))
+        
+        # Build INSERT statement
+        columns = ', '.join(df.columns)
+        placeholders = ', '.join(['%s'] * len(df.columns))
+        
+        sql = f"INSERT INTO {model._meta.db_table} ({columns}) VALUES ({placeholders})"
+        
+        # Execute batch insert
+        cursor.executemany(sql, values)
+        return len(values)
+
+
 @dataclass
 class ImportPlan:
     """
