@@ -10,7 +10,8 @@ from .exporters import PostgresExporter
 from .importers import FKDependencyValidator, PostgresImporter
 from .importing import (
     ImportContext, ImportPlan, ExportPlan, IdRemappingStrategy, 
-    SequentialRemappingStrategy, HashBasedRemappingStrategy, NoRemappingStrategy
+    SequentialRemappingStrategy, HashBasedRemappingStrategy, NoRemappingStrategy,
+    PostgresBulkLoader
 )
 from .sources import PostgresSource
 from .targets import FileTarget
@@ -32,4 +33,5 @@ __all__ = [
     "SequentialRemappingStrategy",
     "HashBasedRemappingStrategy",
     "NoRemappingStrategy",
+    "PostgresBulkLoader",
 ]
