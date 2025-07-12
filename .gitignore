@@ -8,3 +8,4 @@ node_modules
 dist/
 *.sqlite3
 .gitconfig
+src/example/gyro_example/exports/

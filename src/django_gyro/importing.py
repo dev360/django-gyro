@@ -398,26 +398,324 @@ class PostgresBulkLoader:
                     df[fk_column] = df[fk_column].map(id_mappings[related_label]).fillna(df[fk_column])
         
         return df
+
+
+@dataclass
+class CircularDependency:
+    """Represents a circular dependency between two models."""
+    model_a: Type[models.Model]
+    model_b: Type[models.Model]
+    field_a: str  # Field in model_a that references model_b
+    field_b: str  # Field in model_b that references model_a
+    nullable_field: Optional[str] = None  # Which field can be loaded as NULL initially
+
+
+class CircularDependencyResolver:
+    """
+    Resolves circular dependencies during import by using deferred updates.
     
-    def _insert_dataframe_batch(self, cursor: Any, df: Any, model: Type[models.Model]) -> int:
-        """Insert pandas DataFrame using batch INSERT statements."""
-        if df.empty:
-            return 0
+    Strategy:
+    1. Detect circular dependencies between models
+    2. For each circular pair, identify nullable FK field
+    3. Load first model with nullable FK set to NULL
+    4. Load second model with proper FK references
+    5. Update first model's nullable FK with correct values
+    """
+    
+    def __init__(self):
+        self.detected_cycles = []
+        self.deferred_updates = []
+    
+    def detect_circular_dependencies(self, models: List[Type[models.Model]]) -> List[CircularDependency]:
+        """
+        Detect circular dependencies between the given models.
         
-        # Convert DataFrame to list of tuples
-        values = []
-        for _, row in df.iterrows():
-            values.append(tuple(row.values))
+        Args:
+            models: List of Django model classes to analyze
+            
+        Returns:
+            List of CircularDependency objects
+        """
+        cycles = []
         
-        # Build INSERT statement
-        columns = ', '.join(df.columns)
-        placeholders = ', '.join(['%s'] * len(df.columns))
+        for i, model_a in enumerate(models):
+            for j, model_b in enumerate(models[i+1:], i+1):
+                cycle = self._find_cycle_between_models(model_a, model_b)
+                if cycle:
+                    cycles.append(cycle)
         
-        sql = f"INSERT INTO {model._meta.db_table} ({columns}) VALUES ({placeholders})"
+        self.detected_cycles = cycles
+        return cycles
+    
+    def _find_cycle_between_models(self, model_a: Type[models.Model], 
+                                  model_b: Type[models.Model]) -> Optional[CircularDependency]:
+        """Check if there's a circular dependency between two specific models."""
         
-        # Execute batch insert
-        cursor.executemany(sql, values)
-        return len(values)
+        # Find FK from model_a to model_b
+        field_a_to_b = None
+        for field in model_a._meta.get_fields():
+            if isinstance(field, models.ForeignKey):
+                # Handle both class references and string references
+                related_model = field.related_model
+                if hasattr(related_model, '_meta'):
+                    # Direct class reference
+                    if related_model == model_b:
+                        field_a_to_b = field.name
+                        break
+                else:
+                    # String reference - compare by name
+                    if (related_model == model_b.__name__ or 
+                        related_model == f"{model_b._meta.app_label}.{model_b.__name__}"):
+                        field_a_to_b = field.name
+                        break
+        
+        # Find FK from model_b to model_a  
+        field_b_to_a = None
+        for field in model_b._meta.get_fields():
+            if isinstance(field, models.ForeignKey):
+                # Handle both class references and string references
+                related_model = field.related_model
+                if hasattr(related_model, '_meta'):
+                    # Direct class reference
+                    if related_model == model_a:
+                        field_b_to_a = field.name
+                        break
+                else:
+                    # String reference - compare by name
+                    if (related_model == model_a.__name__ or 
+                        related_model == f"{model_a._meta.app_label}.{model_a.__name__}"):
+                        field_b_to_a = field.name
+                        break
+        
+        # If both FKs exist, we have a circular dependency
+        if field_a_to_b and field_b_to_a:
+            # Determine which field is nullable
+            field_a_nullable = model_a._meta.get_field(field_a_to_b).null
+            field_b_nullable = model_b._meta.get_field(field_b_to_a).null
+            
+            nullable_field = None
+            if field_a_nullable:
+                nullable_field = field_a_to_b
+            elif field_b_nullable:
+                nullable_field = field_b_to_a
+            
+            return CircularDependency(
+                model_a=model_a,
+                model_b=model_b,
+                field_a=field_a_to_b,
+                field_b=field_b_to_a,
+                nullable_field=nullable_field
+            )
+        
+        return None
+    
+    def resolve_loading_order(self, models: List[Type[models.Model]]) -> List[Type[models.Model]]:
+        """
+        Determine the optimal loading order considering circular dependencies.
+        
+        For circular dependencies, we load the model with nullable FK first.
+        """
+        cycles = self.detect_circular_dependencies(models)
+        
+        if not cycles:
+            # No cycles, return topological sort
+            return self._topological_sort(models)
+        
+        # Handle cycles by modifying the dependency graph
+        modified_order = []
+        processed = set()
+        
+        for cycle in cycles:
+            if cycle.nullable_field:
+                # Load the model with nullable FK first (without FK values)
+                if cycle.nullable_field in [f.name for f in cycle.model_a._meta.get_fields()]:
+                    # model_a has the nullable field
+                    if cycle.model_a not in processed:
+                        modified_order.append(cycle.model_a)
+                        processed.add(cycle.model_a)
+                    if cycle.model_b not in processed:
+                        modified_order.append(cycle.model_b)
+                        processed.add(cycle.model_b)
+                else:
+                    # model_b has the nullable field
+                    if cycle.model_b not in processed:
+                        modified_order.append(cycle.model_b)
+                        processed.add(cycle.model_b)
+                    if cycle.model_a not in processed:
+                        modified_order.append(cycle.model_a)
+                        processed.add(cycle.model_a)
+        
+        # Add remaining models
+        for model in models:
+            if model not in processed:
+                modified_order.append(model)
+        
+        return modified_order
+    
+    def _topological_sort(self, models: List[Type[models.Model]]) -> List[Type[models.Model]]:
+        """Simple topological sort for models without cycles."""
+        # This is a simplified version - in practice you'd want proper topological sorting
+        return models
+    
+    def prepare_deferred_updates(self, cycles: List[CircularDependency], 
+                                csv_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Prepare deferred update operations for circular dependencies.
+        
+        Args:
+            cycles: List of detected circular dependencies
+            csv_data: Dictionary of CSV data keyed by model name
+            
+        Returns:
+            List of update operations to execute after initial load
+        """
+        updates = []
+        
+        for cycle in cycles:
+            if not cycle.nullable_field:
+                continue
+                
+            # Determine which model has the nullable field
+            if cycle.nullable_field in [f.name for f in cycle.model_a._meta.get_fields()]:
+                source_model = cycle.model_a
+                target_model = cycle.model_b
+                nullable_field = cycle.nullable_field
+            else:
+                source_model = cycle.model_b  
+                target_model = cycle.model_a
+                nullable_field = cycle.field_b
+            
+            # Read original CSV data to get the FK mappings
+            # Try multiple possible key formats
+            source_csv_key = f"{source_model._meta.app_label}_{source_model._meta.model_name}"
+            if source_csv_key not in csv_data:
+                # Try without app label prefix
+                source_csv_key = source_model._meta.model_name
+            
+            if source_csv_key in csv_data:
+                source_data = csv_data[source_csv_key]
+                
+                # Extract ID mappings for deferred update
+                for row in source_data:
+                    if row.get(nullable_field):  # If the FK was supposed to be set
+                        updates.append({
+                            'model': source_model,
+                            'pk': row['id'],
+                            'field': nullable_field,
+                            'value': row[nullable_field]
+                        })
+        
+        self.deferred_updates = updates
+        return updates
+    
+    def execute_deferred_updates(self, updates: List[Dict[str, Any]], 
+                                connection: Any, id_mappings: Dict[str, Dict[int, int]]):
+        """
+        Execute the deferred FK updates after initial loading.
+        
+        Args:
+            updates: List of update operations
+            connection: Database connection
+            id_mappings: ID remapping dictionary for FK resolution
+        """
+        with connection.cursor() as cursor:
+            for update in updates:
+                model = update['model']
+                pk = update['pk']
+                field = update['field']
+                original_fk_value = update['value']
+                
+                # Apply ID remapping to both PK and FK
+                model_key = f"{model._meta.app_label}.{model.__name__}"
+                
+                # Remap the record's PK
+                new_pk = id_mappings.get(model_key, {}).get(pk, pk)
+                
+                # Remap the FK value  
+                fk_field = model._meta.get_field(field)
+                related_model = fk_field.related_model
+                related_key = f"{related_model._meta.app_label}.{related_model.__name__}"
+                new_fk_value = id_mappings.get(related_key, {}).get(original_fk_value, original_fk_value)
+                
+                # Execute the update
+                sql = f"UPDATE {model._meta.db_table} SET {field} = %s WHERE id = %s"
+                cursor.execute(sql, [new_fk_value, new_pk])
+
+
+class TenantAwareRemappingStrategy:
+    """
+    Tenant-aware ID remapping that automatically applies tenant mappings to all related models.
+    
+    Usage:
+        strategy = TenantAwareRemappingStrategy(
+            tenant_model=Organization,
+            tenant_mappings={1060: 10}  # staging org_id 1060 -> local org_id 10
+        )
+    """
+    
+    def __init__(self, tenant_model: Type[models.Model], tenant_mappings: Dict[int, int]):
+        self.tenant_model = tenant_model
+        self.tenant_mappings = tenant_mappings
+        self.tenant_field_name = self._get_tenant_field_name()
+    
+    def _get_tenant_field_name(self) -> str:
+        """Get the common field name used for tenant FKs (e.g., 'organization_id', 'org_id')."""
+        # This could be made configurable, but we'll use a common pattern
+        model_name = self.tenant_model._meta.model_name.lower()
+        return f"{model_name}_id"
+    
+    def apply_to_all_models(self, models: List[Type[models.Model]]) -> Dict[str, Dict[int, int]]:
+        """
+        Generate ID mappings for all models, automatically applying tenant remapping.
+        
+        Args:
+            models: List of Django models to generate mappings for
+            
+        Returns:
+            Complete ID mapping dictionary ready for PostgresBulkLoader
+        """
+        id_mappings = {}
+        
+        # Add tenant model mapping
+        tenant_key = f"{self.tenant_model._meta.app_label}.{self.tenant_model.__name__}"
+        id_mappings[tenant_key] = self.tenant_mappings
+        
+        # For each model, check if it has a tenant FK and apply mappings
+        for model in models:
+            if model == self.tenant_model:
+                continue  # Already handled above
+                
+            model_key = f"{model._meta.app_label}.{model.__name__}"
+            
+            # Check if this model has a tenant FK
+            from django.db import models as django_models
+            has_tenant_fk = any(
+                isinstance(field, django_models.ForeignKey) and field.related_model == self.tenant_model
+                for field in model._meta.get_fields()
+            )
+            
+            if has_tenant_fk:
+                # This model references tenant, so tenant FK remapping will be auto-applied
+                # by PostgresBulkLoader._apply_id_remappings()
+                pass
+            
+            # Generate sequential mappings for this model's own IDs if needed
+            # (This would typically be done by SequentialRemappingStrategy)
+            # For now, we'll leave this empty and let the user specify if needed
+            
+        return id_mappings
+    
+    def get_tenant_filter_for_export(self, tenant_id: int) -> Dict[str, Any]:
+        """
+        Get filter parameters for exporting only data for a specific tenant.
+        
+        Args:
+            tenant_id: The tenant ID to export data for
+            
+        Returns:
+            Dictionary of filter parameters for QuerySet.filter()
+        """
+        return {self.tenant_field_name: tenant_id}
 
 
 @dataclass

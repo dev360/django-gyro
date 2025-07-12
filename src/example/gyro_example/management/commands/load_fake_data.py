@@ -5,7 +5,7 @@ from decimal import Decimal
 from django.core.management.base import BaseCommand
 from faker import Faker
 
-from gyro_example.models import Customer, Order, OrderItem, Product, Shop, Tenant
+from gyro_example.models import Customer, CustomerReferral, Order, OrderItem, Product, Shop, Tenant
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,7 @@ class Command(BaseCommand):
 
         # Clear existing data
         self.stdout.write("Clearing existing data...")
+        CustomerReferral.objects.all().delete()
         OrderItem.objects.all().delete()
         Order.objects.all().delete()
         Product.objects.all().delete()
@@ -51,6 +52,10 @@ class Command(BaseCommand):
         # Create order items
         order_items = self.create_order_items(orders)
         self.stdout.write(f"Created {len(order_items)} order items")
+
+        # Create customer referrals (demonstrates circular dependency)
+        referrals = self.create_customer_referrals(customers)
+        self.stdout.write(f"Created {len(referrals)} customer referrals")
 
         self.stdout.write(self.style.SUCCESS("Fake data created successfully!"))
 
@@ -240,3 +245,67 @@ class Command(BaseCommand):
                 order_items.append(order_item)
 
         return order_items
+
+    def create_customer_referrals(self, customers):
+        """Create customer referrals - demonstrates circular dependency Customer ↔ CustomerReferral"""
+        referrals = []
+        
+        # Group customers by shop for referral generation
+        customers_by_shop = {}
+        for customer in customers:
+            shop_key = customer.shop.id
+            if shop_key not in customers_by_shop:
+                customers_by_shop[shop_key] = []
+            customers_by_shop[shop_key].append(customer)
+        
+        for shop_id, shop_customers in customers_by_shop.items():
+            if len(shop_customers) < 2:
+                continue  # Need at least 2 customers for referrals
+            
+            # Create 10-30% of customers as referred customers
+            num_referrals = max(1, int(len(shop_customers) * random.uniform(0.1, 0.3)))
+            
+            for _ in range(num_referrals):
+                # Pick a random referring customer and referred customer
+                referring_customer = random.choice(shop_customers)
+                referred_customer = random.choice([c for c in shop_customers if c != referring_customer])
+                
+                # Generate unique referral code
+                letters = ''.join(fake.random_letters(4)).upper()
+                referral_code = f"REF-{letters}{fake.random_number(digits=4)}"
+                counter = 1
+                original_code = referral_code
+                while CustomerReferral.objects.filter(referral_code=referral_code).exists():
+                    referral_code = f"{original_code}{counter}"
+                    counter += 1
+                
+                # Create referral with business metrics
+                commission = Decimal(str(random.uniform(5.0, 50.0))).quantize(Decimal("0.01"))
+                orders_count = random.randint(0, 15)
+                revenue = Decimal(str(random.uniform(50.0, 500.0))).quantize(Decimal("0.01"))
+                
+                referral = CustomerReferral.objects.create(
+                    tenant=referring_customer.tenant,
+                    shop=referring_customer.shop,
+                    referred_customer=referred_customer,
+                    referring_customer=referring_customer,
+                    referral_code=referral_code,
+                    status=random.choices(
+                        ["pending", "confirmed", "rewarded", "expired"],
+                        weights=[10, 50, 30, 10]  # Most are confirmed/rewarded
+                    )[0],
+                    commission_earned=commission,
+                    orders_generated=orders_count,
+                    total_revenue=revenue,
+                )
+                referrals.append(referral)
+        
+        # CIRCULAR DEPENDENCY PART: Update some customers with primary_referrer
+        # This demonstrates the circular Customer -> CustomerReferral relationship
+        for referral in referrals[:len(referrals)//2]:  # Update about half
+            if referral.status in ['confirmed', 'rewarded']:
+                # Set this as the customer's primary referral source
+                referral.referred_customer.primary_referrer = referral
+                referral.referred_customer.save()
+        
+        return referrals

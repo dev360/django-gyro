@@ -21,7 +21,7 @@ from django.core.management.base import BaseCommand
 from django.db import connection
 
 from django_gyro import DataSlicer, ImportJob
-from gyro_example.importers import Customer, Order, OrderItem, Product, Shop, Tenant
+from gyro_example.importers import Customer, CustomerReferral, Order, OrderItem, Product, Shop, Tenant
 
 
 class Command(BaseCommand):
@@ -71,6 +71,7 @@ class Command(BaseCommand):
         product_count = Product.objects.count()
         order_count = Order.objects.count()
         order_item_count = OrderItem.objects.count()
+        referral_count = CustomerReferral.objects.count()
 
         self.stdout.write("   📊 Data Summary:")
         self.stdout.write(f"      - Tenants: {tenant_count}")
@@ -79,6 +80,7 @@ class Command(BaseCommand):
         self.stdout.write(f"      - Products: {product_count}")
         self.stdout.write(f"      - Orders: {order_count}")
         self.stdout.write(f"      - Order Items: {order_item_count}")
+        self.stdout.write(f"      - Customer Referrals: {referral_count}")
 
         if tenant_count == 0:
             self.stdout.write(self.style.WARNING("   ⚠️  No data found. Run: python manage.py load_fake_data"))
@@ -101,6 +103,7 @@ class Command(BaseCommand):
         products_query = Product.objects.filter(tenant=target_tenant)
         orders_query = Order.objects.filter(tenant=target_tenant)
         order_items_query = OrderItem.objects.filter(tenant=target_tenant)
+        referrals_query = CustomerReferral.objects.filter(tenant=target_tenant)
 
         self.stdout.write("   📋 Export Query Summary:")
         self.stdout.write(f"      - Tenant: {tenant_query.count()} record(s)")
@@ -109,6 +112,7 @@ class Command(BaseCommand):
         self.stdout.write(f"      - Products: {products_query.count()} record(s)")
         self.stdout.write(f"      - Orders: {orders_query.count()} record(s)")
         self.stdout.write(f"      - Order Items: {order_items_query.count()} record(s)")
+        self.stdout.write(f"      - Customer Referrals: {referrals_query.count()} record(s)")
 
         # Step 3: Set up DataSlicer export
         self.stdout.write("\n3. Setting up DataSlicer export...")
@@ -147,6 +151,7 @@ class Command(BaseCommand):
                     ImportJob(model=Product, query=products_query),
                     ImportJob(model=Order, query=orders_query),
                     ImportJob(model=OrderItem, query=order_items_query),
+                    ImportJob(model=CustomerReferral, query=referrals_query),
                 ],
                 progress_callback=progress_callback,
                 use_notebook_progress=False,
