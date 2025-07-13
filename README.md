@@ -90,21 +90,59 @@ DataSlicer.run(
 
 #### 4. Management Command for CSV Import
 
-Django Gyro includes a management command for importing CSV data with ID remapping:
+Django Gyro includes a management command for importing CSV data:
 
 ```bash
 # Import CSV data with automatic ID remapping
-python manage.py import_csv_data /path/to/csv/files/ --strategy sequential
+python manage.py import_csv_data --source-dir /path/to/csv/files/
 
-# Import with tenant-aware remapping (for multi-tenant setups)
-python manage.py import_csv_data /path/to/csv/files/ --strategy tenant --tenant-id 1
+# Preview import without making changes
+python manage.py import_csv_data --source-dir /path/to/csv/files/ --dry-run
+
+# Use INSERT statements instead of PostgreSQL COPY (slower but more compatible)
+python manage.py import_csv_data --source-dir /path/to/csv/files/ --use-insert
 ```
 
-**ID Remapping Strategies:**
-- `sequential`: Assigns new sequential IDs starting from MAX(existing_id) + 1
-- `hash`: Uses deterministic hashing based on business keys
-- `tenant`: Automatically handles tenant-specific ID remapping
-- `none`: Preserves original IDs (use with caution)
+The command automatically handles dependency ordering and uses sequential ID remapping to avoid conflicts.
+
+#### 5. ID Remapping Strategies (Python API)
+
+For more control over ID remapping, use the Python API:
+
+```python
+from django_gyro.importing import (
+    ImportContext, 
+    SequentialRemappingStrategy,
+    HashBasedRemappingStrategy, 
+    TenantAwareRemappingStrategy,
+    NoRemappingStrategy
+)
+
+# Sequential remapping (assigns new IDs starting from MAX+1)
+strategy = SequentialRemappingStrategy(model=Customer)
+context = ImportContext(
+    source_directory=Path("/path/to/csv/files"),
+    id_remapping_strategy=strategy
+)
+
+# Hash-based remapping (stable IDs using business keys)
+strategy = HashBasedRemappingStrategy(
+    model=Customer, 
+    business_key="email"  # Use email to generate stable IDs
+)
+
+# Tenant-aware remapping (works with any "tenant" model name)
+strategy = TenantAwareRemappingStrategy(
+    tenant_model=Organization,  # Your tenant model (any name)
+    tenant_mappings={1060: 10, 2000: 11}  # staging -> local IDs
+)
+
+# Manual ID mappings
+id_mappings = {
+    "myapp.Customer": {100: 200, 101: 201},  # old_id: new_id
+    "myapp.Order": {500: 600, 501: 601}
+}
+```
 
 ## Use Cases
 
