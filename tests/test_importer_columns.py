@@ -36,14 +36,14 @@ class TestImporterColumnsValidation(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         class ProductColumns1(models.Model):
             name = models.CharField(max_length=100)
             category = models.ForeignKey(CategoryColumns1, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         # Create category importer first
         class CategoryImporter(Importer):
@@ -71,7 +71,7 @@ class TestImporterColumnsValidation(TestCase):
             price = models.DecimalField(max_digits=10, decimal_places=2)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         # Should generate warning for non-FK field reference
         with pytest.warns(UserWarning, match="is not a foreign key field"):
@@ -90,7 +90,7 @@ class TestImporterColumnsValidation(TestCase):
             price = models.DecimalField(max_digits=10, decimal_places=2)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         # Should warn about non-FK field being treated as FK
         with pytest.warns(UserWarning, match="is not a foreign key field"):
@@ -108,14 +108,14 @@ class TestImporterColumnsValidation(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         class ProductColumns4(models.Model):
             name = models.CharField(max_length=100)
             category = models.ForeignKey(CategoryColumns3, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         # Create Product importer without referencing required Category FK
         with pytest.warns(UserWarning, match="missing foreign key reference"):
@@ -135,7 +135,7 @@ class TestImporterColumnsValidation(TestCase):
             description = models.TextField()
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         # Should accept Faker method objects
         class ProductImporter(Importer):
@@ -155,7 +155,7 @@ class TestImporterColumnsValidation(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         # Should warn about invalid Faker reference
         with pytest.warns(UserWarning, match="must be a Django model or Faker method"):
@@ -174,7 +174,7 @@ class TestImporterColumnsValidation(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         class ProductColumns7(models.Model):
             name = models.CharField(max_length=100)
@@ -182,7 +182,7 @@ class TestImporterColumnsValidation(TestCase):
             category = models.ForeignKey(CategoryColumns4, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         # Create category importer
         class CategoryImporter(Importer):
@@ -225,14 +225,14 @@ class TestImporterColumnsRegistryLookup(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         class ProductColumns8(models.Model):
             name = models.CharField(max_length=100)
             category = models.ForeignKey(CategoryColumns5, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         # Create category importer first
         class CategoryImporter(Importer):
@@ -262,14 +262,14 @@ class TestImporterColumnsRegistryLookup(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         class ProductColumns9(models.Model):
             name = models.CharField(max_length=100)
             category = models.ForeignKey(CategoryColumns6, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         # Create Product importer without CategoryImporter
         with pytest.warns(UserWarning, match="no importer found"):
@@ -287,20 +287,20 @@ class TestImporterColumnsRegistryLookup(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         class ProductColumns10(models.Model):
             name = models.CharField(max_length=100)
             category = models.ForeignKey(CategoryColumns7, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         class WrongModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_columns"
 
         # Create category importer
         class CategoryImporter(Importer):

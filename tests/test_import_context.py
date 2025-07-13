@@ -15,6 +15,16 @@ from django_gyro.importing import ImportContext, SequentialRemappingStrategy
 class TestImportContext:
     """Tests for ImportContext value object behavior."""
 
+    def setup_method(self):
+        """Clear the registry before each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
     def test_creates_with_required_source_directory(self):
         """ImportContext requires a source directory."""
         # Setup

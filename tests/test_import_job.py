@@ -43,7 +43,7 @@ class TestImportJobCreation(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         job = ImportJob(model=TestModelJobCreation1)
 
@@ -57,7 +57,7 @@ class TestImportJobCreation(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         queryset = TestModelJobCreation2.objects.filter(name="test")
         job = ImportJob(model=TestModelJobCreation2, query=queryset)
@@ -89,7 +89,7 @@ class TestImportJobCreation(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         with pytest.raises(TypeError, match="must be a Django QuerySet or None"):
             ImportJob(model=TestModelJobCreation3, query="not_a_queryset")
@@ -104,13 +104,13 @@ class TestImportJobCreation(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         class TestModelJobCreation5(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         wrong_queryset = TestModelJobCreation5.objects.all()
 
@@ -124,7 +124,7 @@ class TestImportJobCreation(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         empty_queryset = TestModelJobCreation6.objects.none()
         job = ImportJob(model=TestModelJobCreation6, query=empty_queryset)
@@ -157,7 +157,7 @@ class TestImportJobProperties(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         job = ImportJob(model=TestModelJobProperties1)
         assert job.model == TestModelJobProperties1
@@ -169,7 +169,7 @@ class TestImportJobProperties(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         job = ImportJob(model=TestModelJobProperties2)
 
@@ -184,7 +184,7 @@ class TestImportJobProperties(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         queryset = TestModelJobProperties3.objects.filter(name="test")
         job = ImportJob(model=TestModelJobProperties3, query=queryset)
@@ -198,7 +198,7 @@ class TestImportJobProperties(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         job = ImportJob(model=TestModelJobProperties4)
         assert job.query is None
@@ -228,14 +228,14 @@ class TestImportJobDependencies(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         class ProductJobDeps1(models.Model):
             name = models.CharField(max_length=100)
             category = models.ForeignKey(CategoryJobDeps1, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         # Create importers
         class CategoryImporter(Importer):
@@ -263,21 +263,21 @@ class TestImportJobDependencies(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         class ShopJobDeps2(models.Model):
             name = models.CharField(max_length=100)
             tenant = models.ForeignKey(TenantJobDeps2, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         class ProductJobDeps2(models.Model):
             name = models.CharField(max_length=100)
             shop = models.ForeignKey(ShopJobDeps2, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         # Create importers
         class TenantImporter(Importer):
@@ -313,14 +313,14 @@ class TestImportJobDependencies(TestCase):
             b_ref = models.ForeignKey("ModelBJobDeps3", on_delete=models.CASCADE, null=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         class ModelBJobDeps3(models.Model):
             name = models.CharField(max_length=100)
             a_ref = models.ForeignKey(ModelAJobDeps3, on_delete=models.CASCADE, null=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         # Create importers
         class ModelAImporter(Importer):
@@ -348,14 +348,14 @@ class TestImportJobDependencies(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         class ProductJobDeps4(models.Model):
             name = models.CharField(max_length=100)
             category = models.ForeignKey(CategoryJobDeps4, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         # Create importers
         class CategoryImporter(Importer):
@@ -407,21 +407,21 @@ class TestImportJobDependencyOrdering(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         class ShopJobOrder1(models.Model):
             name = models.CharField(max_length=100)
             tenant = models.ForeignKey(TenantJobOrder1, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         class ProductJobOrder1(models.Model):
             name = models.CharField(max_length=100)
             shop = models.ForeignKey(ShopJobOrder1, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         # Create importers
         class TenantImporter(Importer):
@@ -464,14 +464,14 @@ class TestImportJobDependencyOrdering(TestCase):
             b_ref = models.ForeignKey("ModelBJobOrder2", on_delete=models.CASCADE, null=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         class ModelBJobOrder2(models.Model):
             name = models.CharField(max_length=100)
             a_ref = models.ForeignKey(ModelAJobOrder2, on_delete=models.CASCADE, null=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         # Create importers with circular dependency
         class ModelAImporter(Importer):
@@ -501,13 +501,13 @@ class TestImportJobDependencyOrdering(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         class IndependentBJobOrder3(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_job"
 
         # Create importers
         class IndependentAImporter(Importer):

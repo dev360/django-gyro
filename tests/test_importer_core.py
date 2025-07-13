@@ -36,7 +36,7 @@ class TestImporterMetaclassRegistry(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_core"
 
         # Create an importer
         class TestImporter(Importer):
@@ -56,7 +56,7 @@ class TestImporterMetaclassRegistry(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_core"
 
         # Create first importer
         class TestImporter1(Importer):
@@ -127,7 +127,7 @@ class TestImporterFileNaming(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_core"
 
         class TestImporter(Importer):
             model = TestModelCore3
@@ -146,7 +146,7 @@ class TestImporterFileNaming(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_core"
                 db_table = "custom_table_name"
 
         class TestImporter(Importer):
@@ -165,7 +165,7 @@ class TestImporterFileNaming(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_core"
 
         class TestImporter(Importer):
             model = TestModelCore5
@@ -206,7 +206,7 @@ class TestImporterRegistryLookup(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_core"
 
         class TestImporter(Importer):
             model = TestModelCore6
@@ -225,7 +225,7 @@ class TestImporterRegistryLookup(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_core"
 
         # Should return None for unregistered model
         found_importer = Importer.get_importer_for_model(UnregisteredModel)
@@ -238,13 +238,13 @@ class TestImporterRegistryLookup(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_core"
 
         class ChildModel(BaseModel):
             age = models.IntegerField()
 
             class Meta:
-                app_label = "test"
+                app_label = "test_importer_core"
 
         # Create importer for child model
         class ChildModelImporter(Importer):

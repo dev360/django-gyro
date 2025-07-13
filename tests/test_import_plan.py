@@ -17,15 +17,25 @@ from django_gyro.importing import ImportPlan, SequentialRemappingStrategy
 class TestImportPlan:
     """Tests for ImportPlan value object behavior."""
 
+    def setup_method(self):
+        """Clear the registry before each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
     def test_creates_with_model_and_csv_path(self):
         """ImportPlan requires a model and CSV path."""
 
         # Setup
-        class TestModel(models.Model):
+        class ImportPlanTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_plan"
 
         import tempfile
 
@@ -34,10 +44,10 @@ class TestImportPlan:
             csv_path.touch()
 
             # Exercise
-            plan = ImportPlan(model=TestModel, csv_path=csv_path)
+            plan = ImportPlan(model=ImportPlanTestModel, csv_path=csv_path)
 
             # Verify
-            assert plan.model == TestModel
+            assert plan.model == ImportPlanTestModel
             assert plan.csv_path == csv_path
             assert plan.dependencies == []
             assert plan.id_remapping_strategy is None
@@ -46,11 +56,11 @@ class TestImportPlan:
         """ImportPlan provides a convenient model label."""
 
         # Setup
-        class TestModel(models.Model):
+        class ImportPlanTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_plan"
 
         import tempfile
 
@@ -58,30 +68,30 @@ class TestImportPlan:
             csv_path = Path(temp_dir) / "test.csv"
             csv_path.touch()
 
-            plan = ImportPlan(model=TestModel, csv_path=csv_path)
+            plan = ImportPlan(model=ImportPlanTestModel, csv_path=csv_path)
 
             # Exercise
             label = plan.model_label
 
             # Verify
-            assert label == "test.TestModel"
+            assert label == "test_import_plan.ImportPlanTestModel"
 
     def test_can_have_dependencies(self):
         """ImportPlan can depend on other ImportPlans."""
 
         # Setup
-        class Tenant(models.Model):
+        class ImportPlanTenant(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_plan"
 
-        class Shop(models.Model):
-            tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+        class ImportPlanShop(models.Model):
+            tenant = models.ForeignKey(ImportPlanTenant, on_delete=models.CASCADE)
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_plan"
 
         import tempfile
 
@@ -91,8 +101,8 @@ class TestImportPlan:
             tenant_csv.touch()
             shop_csv.touch()
 
-            tenant_plan = ImportPlan(model=Tenant, csv_path=tenant_csv)
-            shop_plan = ImportPlan(model=Shop, csv_path=shop_csv, dependencies=[tenant_plan])
+            tenant_plan = ImportPlan(model=ImportPlanTenant, csv_path=tenant_csv)
+            shop_plan = ImportPlan(model=ImportPlanShop, csv_path=shop_csv, dependencies=[tenant_plan])
 
             # Exercise & Verify
             assert len(shop_plan.dependencies) == 1
@@ -102,11 +112,11 @@ class TestImportPlan:
         """ImportPlan can have a specific ID remapping strategy."""
 
         # Setup
-        class TestModel(models.Model):
+        class ImportPlanTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_plan"
 
         import tempfile
 
@@ -115,7 +125,7 @@ class TestImportPlan:
             csv_path.touch()
 
             strategy = Mock(spec=SequentialRemappingStrategy)
-            plan = ImportPlan(model=TestModel, csv_path=csv_path, id_remapping_strategy=strategy)
+            plan = ImportPlan(model=ImportPlanTestModel, csv_path=csv_path, id_remapping_strategy=strategy)
 
             # Exercise & Verify
             assert plan.id_remapping_strategy is strategy
@@ -124,34 +134,34 @@ class TestImportPlan:
         """ImportPlan validates that the CSV file exists."""
 
         # Setup
-        class TestModel(models.Model):
+        class ImportPlanTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_plan"
 
         non_existent_csv = Path("/definitely/does/not/exist.csv")
 
         # Exercise & Verify
         with pytest.raises(ValueError, match="CSV file does not exist"):
-            ImportPlan(model=TestModel, csv_path=non_existent_csv)
+            ImportPlan(model=ImportPlanTestModel, csv_path=non_existent_csv)
 
     def test_discovers_foreign_key_dependencies(self):
         """ImportPlan can discover dependencies from model foreign keys."""
 
         # Setup
-        class Tenant(models.Model):
+        class ImportPlanTenant(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_plan"
 
-        class Shop(models.Model):
-            tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+        class ImportPlanShop(models.Model):
+            tenant = models.ForeignKey(ImportPlanTenant, on_delete=models.CASCADE)
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_plan"
 
         import tempfile
 
@@ -160,29 +170,29 @@ class TestImportPlan:
             csv_path.touch()
 
             # Exercise
-            plan = ImportPlan(model=Shop, csv_path=csv_path)
+            plan = ImportPlan(model=ImportPlanShop, csv_path=csv_path)
             fk_dependencies = plan.discover_foreign_key_dependencies()
 
             # Verify
-            assert Tenant in fk_dependencies
+            assert ImportPlanTenant in fk_dependencies
             assert len(fk_dependencies) == 1
 
     def test_calculates_import_order_weight(self):
         """ImportPlan calculates weight for dependency ordering."""
 
         # Setup
-        class Tenant(models.Model):
+        class ImportPlanTenant(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_plan"
 
-        class Shop(models.Model):
-            tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+        class ImportPlanShop(models.Model):
+            tenant = models.ForeignKey(ImportPlanTenant, on_delete=models.CASCADE)
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_plan"
 
         import tempfile
 
@@ -192,8 +202,8 @@ class TestImportPlan:
             tenant_csv.touch()
             shop_csv.touch()
 
-            tenant_plan = ImportPlan(model=Tenant, csv_path=tenant_csv)
-            shop_plan = ImportPlan(model=Shop, csv_path=shop_csv, dependencies=[tenant_plan])
+            tenant_plan = ImportPlan(model=ImportPlanTenant, csv_path=tenant_csv)
+            shop_plan = ImportPlan(model=ImportPlanShop, csv_path=shop_csv, dependencies=[tenant_plan])
 
             # Exercise
             tenant_weight = tenant_plan.calculate_import_weight()
@@ -207,11 +217,11 @@ class TestImportPlan:
         """ImportPlan can estimate row count from CSV file."""
 
         # Setup
-        class TestModel(models.Model):
+        class ImportPlanTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_plan"
 
         import tempfile
 
@@ -223,7 +233,7 @@ class TestImportPlan:
                 f.write("Jane,jane@example.com\n")
                 f.write("Bob,bob@example.com\n")
 
-            plan = ImportPlan(model=TestModel, csv_path=csv_path)
+            plan = ImportPlan(model=ImportPlanTestModel, csv_path=csv_path)
 
             # Exercise
             row_count = plan.estimate_row_count()
@@ -235,11 +245,11 @@ class TestImportPlan:
         """Two ImportPlans are equal if they have same model and CSV path."""
 
         # Setup
-        class TestModel(models.Model):
+        class ImportPlanTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_plan"
 
         import tempfile
 
@@ -247,8 +257,8 @@ class TestImportPlan:
             csv_path = Path(temp_dir) / "test.csv"
             csv_path.touch()
 
-            plan1 = ImportPlan(model=TestModel, csv_path=csv_path)
-            plan2 = ImportPlan(model=TestModel, csv_path=csv_path)
+            plan1 = ImportPlan(model=ImportPlanTestModel, csv_path=csv_path)
+            plan2 = ImportPlan(model=ImportPlanTestModel, csv_path=csv_path)
 
             # Exercise & Verify
             assert plan1 == plan2
@@ -257,18 +267,18 @@ class TestImportPlan:
         """ImportPlan can be used as a dependency in other plans."""
 
         # Setup
-        class Tenant(models.Model):
+        class ImportPlanTenant(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_plan"
 
-        class Shop(models.Model):
-            tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+        class ImportPlanShop(models.Model):
+            tenant = models.ForeignKey(ImportPlanTenant, on_delete=models.CASCADE)
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_plan"
 
         import tempfile
 
@@ -278,8 +288,8 @@ class TestImportPlan:
             tenant_csv.touch()
             shop_csv.touch()
 
-            tenant_plan = ImportPlan(model=Tenant, csv_path=tenant_csv)
-            shop_plan = ImportPlan(model=Shop, csv_path=shop_csv, dependencies=[tenant_plan])
+            tenant_plan = ImportPlan(model=ImportPlanTenant, csv_path=tenant_csv)
+            shop_plan = ImportPlan(model=ImportPlanShop, csv_path=shop_csv, dependencies=[tenant_plan])
 
             # Exercise & Verify
             assert tenant_plan in shop_plan.dependencies
@@ -289,11 +299,11 @@ class TestImportPlan:
         """ImportPlan provides useful string representation."""
 
         # Setup
-        class TestModel(models.Model):
+        class ImportPlanTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_import_plan"
 
         import tempfile
 
@@ -301,12 +311,12 @@ class TestImportPlan:
             csv_path = Path(temp_dir) / "test.csv"
             csv_path.touch()
 
-            plan = ImportPlan(model=TestModel, csv_path=csv_path)
+            plan = ImportPlan(model=ImportPlanTestModel, csv_path=csv_path)
 
             # Exercise
             string_repr = str(plan)
 
             # Verify
             assert "ImportPlan" in string_repr
-            assert "TestModel" in string_repr
+            assert "ImportPlanTestModel" in string_repr
             assert "test.csv" in string_repr

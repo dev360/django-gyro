@@ -9,24 +9,7 @@ from unittest.mock import Mock
 
 import pytest
 
-try:
-    import pandas as pd
-except ImportError:
-    # Mock pandas for testing environments where it's not available
-    class MockPandas:
-        @staticmethod
-        def Series(data):
-            return data
-
-        @staticmethod
-        def DataFrame(data):
-            return data
-
-        @staticmethod
-        def isna(value):
-            return value is None or value == ""
-
-    pd = MockPandas()
+import pandas as pd
 from django.db import models
 
 from django_gyro.importing import (
@@ -39,6 +22,16 @@ from django_gyro.importing import (
 
 class TestIdRemappingStrategy:
     """Tests for IdRemappingStrategy abstract base class."""
+
+    def setup_method(self):
+        """Clear the registry before each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
 
     def test_is_abstract_base_class(self):
         """IdRemappingStrategy cannot be instantiated directly."""
@@ -56,18 +49,28 @@ class TestIdRemappingStrategy:
 class TestSequentialRemappingStrategy:
     """Tests for SequentialRemappingStrategy behavior."""
 
+    def setup_method(self):
+        """Clear the registry before each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
     def test_generates_sequential_ids_from_max_plus_one(self):
         """SequentialRemappingStrategy assigns IDs starting from MAX+1."""
 
         # Setup
-        class TestModel(models.Model):
+        class IdRemappingTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_id_remapping"
                 db_table = "test_model"
 
-        strategy = SequentialRemappingStrategy(model=TestModel)
+        strategy = SequentialRemappingStrategy(model=IdRemappingTestModel)
         source_ids = pd.Series([100, 200, 300])
 
         # Mock database cursor with proper context manager
@@ -90,14 +93,14 @@ class TestSequentialRemappingStrategy:
         """SequentialRemappingStrategy handles empty target table correctly."""
 
         # Setup
-        class TestModel(models.Model):
+        class IdRemappingTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_id_remapping"
                 db_table = "test_model"
 
-        strategy = SequentialRemappingStrategy(model=TestModel)
+        strategy = SequentialRemappingStrategy(model=IdRemappingTestModel)
         source_ids = pd.Series([100, 200])
 
         # Mock database cursor - empty table
@@ -119,14 +122,14 @@ class TestSequentialRemappingStrategy:
         """SequentialRemappingStrategy handles single ID correctly."""
 
         # Setup
-        class TestModel(models.Model):
+        class IdRemappingTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_id_remapping"
                 db_table = "test_model"
 
-        strategy = SequentialRemappingStrategy(model=TestModel)
+        strategy = SequentialRemappingStrategy(model=IdRemappingTestModel)
         source_ids = pd.Series([500])
 
         # Mock database cursor
@@ -148,14 +151,14 @@ class TestSequentialRemappingStrategy:
         """SequentialRemappingStrategy preserves source ID order."""
 
         # Setup
-        class TestModel(models.Model):
+        class IdRemappingTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_id_remapping"
                 db_table = "test_model"
 
-        strategy = SequentialRemappingStrategy(model=TestModel)
+        strategy = SequentialRemappingStrategy(model=IdRemappingTestModel)
         # Note: unsorted source IDs
         source_ids = pd.Series([300, 100, 200])
 
@@ -178,14 +181,14 @@ class TestSequentialRemappingStrategy:
         """SequentialRemappingStrategy handles duplicate source IDs."""
 
         # Setup
-        class TestModel(models.Model):
+        class IdRemappingTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_id_remapping"
                 db_table = "test_model"
 
-        strategy = SequentialRemappingStrategy(model=TestModel)
+        strategy = SequentialRemappingStrategy(model=IdRemappingTestModel)
         source_ids = pd.Series([100, 100, 200])  # Duplicate 100
 
         # Mock database cursor
@@ -208,18 +211,28 @@ class TestSequentialRemappingStrategy:
 class TestHashBasedRemappingStrategy:
     """Tests for HashBasedRemappingStrategy behavior."""
 
+    def setup_method(self):
+        """Clear the registry before each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
     def test_generates_deterministic_ids_from_business_key(self):
         """HashBasedRemappingStrategy generates deterministic IDs."""
 
         # Setup
-        class TestModel(models.Model):
+        class IdRemappingTestModel(models.Model):
             name = models.CharField(max_length=100)
             email = models.EmailField()
 
             class Meta:
-                app_label = "test"
+                app_label = "test_id_remapping"
 
-        strategy = HashBasedRemappingStrategy(model=TestModel, business_key="email")
+        strategy = HashBasedRemappingStrategy(model=IdRemappingTestModel, business_key="email")
 
         # Mock data with business keys
         source_data = pd.DataFrame(
@@ -241,14 +254,14 @@ class TestHashBasedRemappingStrategy:
         """HashBasedRemappingStrategy handles empty business key values."""
 
         # Setup
-        class TestModel(models.Model):
+        class IdRemappingTestModel(models.Model):
             name = models.CharField(max_length=100)
             email = models.EmailField()
 
             class Meta:
-                app_label = "test"
+                app_label = "test_id_remapping"
 
-        strategy = HashBasedRemappingStrategy(model=TestModel, business_key="email")
+        strategy = HashBasedRemappingStrategy(model=IdRemappingTestModel, business_key="email")
 
         # Mock data with some empty emails
         source_data = pd.DataFrame({"id": [100, 200, 300], "email": ["john@example.com", "", "bob@example.com"]})
@@ -266,13 +279,13 @@ class TestHashBasedRemappingStrategy:
         """HashBasedRemappingStrategy validates business key exists."""
 
         # Setup
-        class TestModel(models.Model):
+        class IdRemappingTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_id_remapping"
 
-        strategy = HashBasedRemappingStrategy(model=TestModel, business_key="nonexistent_field")
+        strategy = HashBasedRemappingStrategy(model=IdRemappingTestModel, business_key="nonexistent_field")
 
         source_data = pd.DataFrame({"id": [100, 200], "name": ["John", "Jane"]})
 
@@ -284,17 +297,27 @@ class TestHashBasedRemappingStrategy:
 class TestNoRemappingStrategy:
     """Tests for NoRemappingStrategy behavior."""
 
+    def setup_method(self):
+        """Clear the registry before each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
     def test_returns_identity_mapping(self):
         """NoRemappingStrategy returns identity mapping (no change)."""
 
         # Setup
-        class TestModel(models.Model):
+        class IdRemappingTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_id_remapping"
 
-        strategy = NoRemappingStrategy(model=TestModel)
+        strategy = NoRemappingStrategy(model=IdRemappingTestModel)
         source_ids = pd.Series([100, 200, 300])
 
         # Exercise
@@ -307,13 +330,13 @@ class TestNoRemappingStrategy:
         """NoRemappingStrategy handles empty source IDs."""
 
         # Setup
-        class TestModel(models.Model):
+        class IdRemappingTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_id_remapping"
 
-        strategy = NoRemappingStrategy(model=TestModel)
+        strategy = NoRemappingStrategy(model=IdRemappingTestModel)
         source_ids = pd.Series([])
 
         # Exercise
@@ -326,22 +349,32 @@ class TestNoRemappingStrategy:
 class TestIdRemappingStrategyIntegration:
     """Integration tests for ID remapping strategies."""
 
+    def setup_method(self):
+        """Clear the registry before each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
     def test_strategies_can_be_used_interchangeably(self):
         """All strategies implement the same interface."""
 
         # Setup
-        class TestModel(models.Model):
+        class IdRemappingTestModel(models.Model):
             name = models.CharField(max_length=100)
             email = models.EmailField()
 
             class Meta:
-                app_label = "test"
+                app_label = "test_id_remapping"
                 db_table = "test_model"
 
         # Create different strategies
-        sequential = SequentialRemappingStrategy(model=TestModel)
-        hash_based = HashBasedRemappingStrategy(model=TestModel, business_key="email")
-        no_remap = NoRemappingStrategy(model=TestModel)
+        sequential = SequentialRemappingStrategy(model=IdRemappingTestModel)
+        hash_based = HashBasedRemappingStrategy(model=IdRemappingTestModel, business_key="email")
+        no_remap = NoRemappingStrategy(model=IdRemappingTestModel)
 
         strategies = [sequential, hash_based, no_remap]
 
@@ -355,19 +388,19 @@ class TestIdRemappingStrategyIntegration:
         """Strategy can be selected at runtime based on configuration."""
 
         # Setup
-        class TestModel(models.Model):
+        class IdRemappingTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_id_remapping"
 
         def get_strategy(strategy_name: str) -> IdRemappingStrategy:
             if strategy_name == "sequential":
-                return SequentialRemappingStrategy(model=TestModel)
+                return SequentialRemappingStrategy(model=IdRemappingTestModel)
             elif strategy_name == "hash":
-                return HashBasedRemappingStrategy(model=TestModel, business_key="name")
+                return HashBasedRemappingStrategy(model=IdRemappingTestModel, business_key="name")
             elif strategy_name == "none":
-                return NoRemappingStrategy(model=TestModel)
+                return NoRemappingStrategy(model=IdRemappingTestModel)
             else:
                 raise ValueError(f"Unknown strategy: {strategy_name}")
 
@@ -389,18 +422,28 @@ class TestIdRemappingStrategyIntegration:
 class TestIdRemappingStrategyPerformance:
     """Performance-related tests for ID remapping strategies."""
 
+    def setup_method(self):
+        """Clear the registry before each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
     def test_sequential_strategy_scales_with_large_datasets(self):
         """SequentialRemappingStrategy handles large datasets efficiently."""
 
         # Setup
-        class TestModel(models.Model):
+        class IdRemappingTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_id_remapping"
                 db_table = "test_model"
 
-        strategy = SequentialRemappingStrategy(model=TestModel)
+        strategy = SequentialRemappingStrategy(model=IdRemappingTestModel)
 
         # Create large dataset
         large_source_ids = pd.Series(range(1000, 11000))  # 10k IDs
@@ -426,13 +469,13 @@ class TestIdRemappingStrategyPerformance:
         """HashBasedRemappingStrategy caches hash computations."""
 
         # Setup
-        class TestModel(models.Model):
+        class IdRemappingTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_id_remapping"
 
-        strategy = HashBasedRemappingStrategy(model=TestModel, business_key="name")
+        strategy = HashBasedRemappingStrategy(model=IdRemappingTestModel, business_key="name")
 
         # Same data multiple times
         source_data = pd.DataFrame({"id": [100, 200], "name": ["John", "Jane"]})

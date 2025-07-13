@@ -12,10 +12,19 @@ import pytest
 from django.db import models
 
 from django_gyro.importing import ImportContext, PostgresBulkLoader
+from .test_utils import clear_django_gyro_registries
 
 
 class TestPostgresBulkLoader:
     """Tests for PostgresBulkLoader service behavior."""
+
+    def setup_method(self):
+        """Clear registries before each test."""
+        clear_django_gyro_registries()
+
+    def teardown_method(self):
+        """Clear registries after each test."""
+        clear_django_gyro_registries()
 
     def test_creates_staging_table_with_same_structure(self):
         """PostgresBulkLoader creates staging table matching target table."""
@@ -26,7 +35,7 @@ class TestPostgresBulkLoader:
             email = models.EmailField()
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_bulk_loader"
                 db_table = "test_model"
 
         loader = PostgresBulkLoader()
@@ -49,7 +58,7 @@ class TestPostgresBulkLoader:
             email = models.EmailField()
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_bulk_loader"
                 db_table = "test_model"
 
         loader = PostgresBulkLoader()
@@ -83,7 +92,7 @@ class TestPostgresBulkLoader:
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_bulk_loader"
                 db_table = "tenant"
 
         class Shop(models.Model):
@@ -91,7 +100,7 @@ class TestPostgresBulkLoader:
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_bulk_loader"
                 db_table = "shop"
 
         loader = PostgresBulkLoader()
@@ -138,7 +147,7 @@ class TestPostgresBulkLoader:
             email = models.EmailField()
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_bulk_loader"
                 db_table = "test_model"
 
         loader = PostgresBulkLoader()
@@ -162,7 +171,7 @@ class TestPostgresBulkLoader:
             email = models.EmailField(unique=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_bulk_loader"
                 db_table = "test_model"
 
         loader = PostgresBulkLoader()
@@ -186,7 +195,7 @@ class TestPostgresBulkLoader:
             email = models.EmailField()
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_bulk_loader"
                 db_table = "test_model"
 
         loader = PostgresBulkLoader()
@@ -227,7 +236,7 @@ class TestPostgresBulkLoader:
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_bulk_loader"
                 db_table = "tenant"
 
         class Shop(models.Model):
@@ -235,7 +244,7 @@ class TestPostgresBulkLoader:
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_bulk_loader"
                 db_table = "shop"
 
         loader = PostgresBulkLoader()
@@ -257,7 +266,10 @@ class TestPostgresBulkLoader:
         mock_connection.cursor.return_value = mock_cursor
 
         # ID mappings
-        id_mappings = {"test.Shop": {1: 10, 2: 20}, "test.Tenant": {100: 1000, 200: 2000}}
+        id_mappings = {
+            "test_postgres_bulk_loader.Shop": {1: 10, 2: 20}, 
+            "test_postgres_bulk_loader.Tenant": {100: 1000, 200: 2000}
+        }
 
         try:
             # Exercise
@@ -281,7 +293,7 @@ class TestPostgresBulkLoader:
             value = models.IntegerField()
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_bulk_loader"
                 db_table = "test_model"
 
         loader = PostgresBulkLoader()
@@ -322,7 +334,7 @@ class TestPostgresBulkLoader:
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_bulk_loader"
                 db_table = "test_model"
 
         loader = PostgresBulkLoader()
@@ -360,7 +372,7 @@ class TestPostgresBulkLoader:
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_bulk_loader"
                 db_table = "test_model"
 
         loader = PostgresBulkLoader()
@@ -378,7 +390,7 @@ class TestPostgresBulkLoader:
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_bulk_loader"
                 db_table = "test_model"
 
         loader = PostgresBulkLoader()
@@ -418,7 +430,7 @@ class TestPostgresBulkLoader:
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_bulk_loader"
                 db_table = "test_model"
 
         loader = PostgresBulkLoader()
@@ -463,7 +475,7 @@ class TestPostgresBulkLoaderIntegration:
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_bulk_loader"
                 db_table = "test_model"
 
         import tempfile
@@ -502,7 +514,7 @@ class TestPostgresBulkLoaderIntegration:
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_bulk_loader"
                 db_table = "test_model"
 
         import tempfile

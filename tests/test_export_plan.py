@@ -17,45 +17,55 @@ from django_gyro.importing import ExportPlan
 class TestExportPlan:
     """Tests for ExportPlan behavior (formerly ImportJob)."""
 
+    def setup_method(self):
+        """Clear the registry before each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        from .test_utils import clear_django_gyro_registries
+        clear_django_gyro_registries()
+
     def test_creates_with_model_only(self):
         """ExportPlan can be created with just a model."""
 
         # Setup
-        class TestModel(models.Model):
+        class ExportPlanTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
         # Exercise
-        plan = ExportPlan(model=TestModel)
+        plan = ExportPlan(model=ExportPlanTestModel)
 
         # Verify
-        assert plan.model == TestModel
+        assert plan.model == ExportPlanTestModel
         assert plan.query is None
 
     def test_creates_with_model_and_queryset(self):
         """ExportPlan can be created with model and QuerySet."""
 
         # Setup
-        class TestModel(models.Model):
+        class ExportPlanTestModel2(models.Model):
             name = models.CharField(max_length=100)
             active = models.BooleanField(default=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
         # Mock QuerySet that passes validation
         from django.db.models.query import QuerySet
 
         mock_queryset = Mock(spec=QuerySet)
-        mock_queryset.model = TestModel
+        mock_queryset.model = ExportPlanTestModel2
 
         # Exercise
-        plan = ExportPlan(model=TestModel, query=mock_queryset)
+        plan = ExportPlan(model=ExportPlanTestModel2, query=mock_queryset)
 
         # Verify
-        assert plan.model == TestModel
+        assert plan.model == ExportPlanTestModel2
         assert plan.query == mock_queryset
 
     def test_validates_model_is_django_model(self):
@@ -73,41 +83,41 @@ class TestExportPlan:
         """ExportPlan validates that query is a QuerySet."""
 
         # Setup
-        class TestModel(models.Model):
+        class ExportPlanTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
         # Exercise & Verify
         with pytest.raises(TypeError, match="query must be a Django QuerySet or None"):
-            ExportPlan(model=TestModel, query="not a queryset")
+            ExportPlan(model=ExportPlanTestModel, query="not a queryset")
 
     def test_validates_query_model_matches_plan_model(self):
         """ExportPlan validates that QuerySet model matches plan model."""
 
         # Setup
-        class TestModel1(models.Model):
+        class ExportPlanTestModel3(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
-        class TestModel2(models.Model):
+        class ExportPlanTestModel4(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
         # Mock QuerySet with different model
         from django.db.models.query import QuerySet
 
         mock_queryset = Mock(spec=QuerySet)
-        mock_queryset.model = TestModel2
+        mock_queryset.model = ExportPlanTestModel4
 
         # Exercise & Verify
         with pytest.raises(ValueError, match="QuerySet model does not match"):
-            ExportPlan(model=TestModel1, query=mock_queryset)
+            ExportPlan(model=ExportPlanTestModel3, query=mock_queryset)
 
     def test_identifies_direct_dependencies(self):
         """ExportPlan identifies direct model dependencies."""
@@ -117,14 +127,14 @@ class TestExportPlan:
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
         class Shop(models.Model):
             tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
         # Mock importers
         class TenantImporter(Importer):
@@ -164,7 +174,7 @@ class TestExportPlan:
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
         # Mock importer with no dependencies
         class TenantImporter(Importer):
@@ -188,14 +198,14 @@ class TestExportPlan:
         """ExportPlan caches dependency computations for performance."""
 
         # Setup
-        class TestModel(models.Model):
+        class ExportPlanTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
         class TestImporter(Importer):
-            model = TestModel
+            model = ExportPlanTestModel
 
             class Columns:
                 pass
@@ -203,7 +213,7 @@ class TestExportPlan:
         with patch.object(Importer, "get_importer_for_model") as mock_get_importer:
             mock_get_importer.return_value = TestImporter
 
-            plan = ExportPlan(model=TestModel)
+            plan = ExportPlan(model=ExportPlanTestModel)
 
             # Exercise
             deps1 = plan.get_dependencies()
@@ -221,13 +231,13 @@ class TestExportPlan:
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
         class ModelB(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
         # Mock circular dependency: A depends on B, B depends on A
         class ImporterA(Importer):
@@ -264,21 +274,21 @@ class TestExportPlan:
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
         class Shop(models.Model):
             tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
         class Customer(models.Model):
             shop = models.ForeignKey(Shop, on_delete=models.CASCADE)
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
         # Mock importers with dependencies
         class TenantImporter(Importer):
@@ -334,7 +344,7 @@ class TestExportPlan:
             parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
         class CategoryImporter(Importer):
             model = Category
@@ -358,47 +368,47 @@ class TestExportPlan:
         """ExportPlan provides useful string representation."""
 
         # Setup
-        class TestModel(models.Model):
+        class ExportPlanTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
         # Exercise
-        plan_without_query = ExportPlan(model=TestModel)
+        plan_without_query = ExportPlan(model=ExportPlanTestModel)
 
         from django.db.models.query import QuerySet
 
         mock_queryset = Mock(spec=QuerySet)
-        mock_queryset.model = TestModel
-        plan_with_query = ExportPlan(model=TestModel, query=mock_queryset)
+        mock_queryset.model = ExportPlanTestModel
+        plan_with_query = ExportPlan(model=ExportPlanTestModel, query=mock_queryset)
 
         # Verify
         assert "ExportPlan" in str(plan_without_query)
-        assert "TestModel" in str(plan_without_query)
+        assert "ExportPlanTestModel" in str(plan_without_query)
         assert "ExportPlan" in str(plan_with_query)
-        assert "TestModel" in str(plan_with_query)
+        assert "ExportPlanTestModel" in str(plan_with_query)
         assert "query=" in str(plan_with_query)
 
     def test_equality_based_on_model_and_query(self):
         """Two ExportPlans are equal if they have same model and query."""
 
         # Setup
-        class TestModel(models.Model):
+        class ExportPlanTestModel(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_export_plan"
 
         from django.db.models.query import QuerySet
 
         mock_queryset = Mock(spec=QuerySet)
-        mock_queryset.model = TestModel
+        mock_queryset.model = ExportPlanTestModel
 
         # Exercise
-        plan1 = ExportPlan(model=TestModel, query=mock_queryset)
-        plan2 = ExportPlan(model=TestModel, query=mock_queryset)
-        plan3 = ExportPlan(model=TestModel)  # Different (no query)
+        plan1 = ExportPlan(model=ExportPlanTestModel, query=mock_queryset)
+        plan2 = ExportPlan(model=ExportPlanTestModel, query=mock_queryset)
+        plan3 = ExportPlan(model=ExportPlanTestModel)  # Different (no query)
 
         # Verify
         assert plan1 == plan2

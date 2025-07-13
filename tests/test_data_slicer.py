@@ -16,24 +16,11 @@ from django.db import models
 from django.test import TestCase
 
 from django_gyro import DataSlicer, Importer, ImportJob
+from .test_utils import DjangoGyroTestMixin
 
 
-class TestDataSlicerConfiguration(TestCase):
+class TestDataSlicerConfiguration(DjangoGyroTestMixin, TestCase):
     """Test DataSlicer instantiation and configuration."""
-
-    def setUp(self):
-        """Clear the registry before each test."""
-        if hasattr(Importer, "_registry"):
-            Importer._registry.clear()
-        if hasattr(ImportJob, "_dependency_cache"):
-            ImportJob._dependency_cache.clear()
-
-    def tearDown(self):
-        """Clean up after each test."""
-        if hasattr(Importer, "_registry"):
-            Importer._registry.clear()
-        if hasattr(ImportJob, "_dependency_cache"):
-            ImportJob._dependency_cache.clear()
 
     def test_data_slicer_creation_with_importers(self):
         """Test creating DataSlicer with importer class list."""
@@ -42,13 +29,13 @@ class TestDataSlicerConfiguration(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class TestModel2(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class TestImporter1(Importer):
             model = TestModel1
@@ -76,13 +63,13 @@ class TestDataSlicerConfiguration(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class TestModel2(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class TestImporter1(Importer):
             model = TestModel1
@@ -122,7 +109,7 @@ class TestDataSlicerConfiguration(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         with pytest.raises(ValueError, match="no importer found"):
             DataSlicer([UnregisteredSlicerModel])
@@ -134,13 +121,13 @@ class TestDataSlicerConfiguration(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class TestModel2(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class TestImporter1(Importer):
             model = TestModel1
@@ -162,22 +149,8 @@ class TestDataSlicerConfiguration(TestCase):
         assert TestImporter2 in slicer.importers
 
 
-class TestDataSlicerJobGeneration(TestCase):
+class TestDataSlicerJobGeneration(DjangoGyroTestMixin, TestCase):
     """Test DataSlicer job generation functionality."""
-
-    def setUp(self):
-        """Clear the registry before each test."""
-        if hasattr(Importer, "_registry"):
-            Importer._registry.clear()
-        if hasattr(ImportJob, "_dependency_cache"):
-            ImportJob._dependency_cache.clear()
-
-    def tearDown(self):
-        """Clean up after each test."""
-        if hasattr(Importer, "_registry"):
-            Importer._registry.clear()
-        if hasattr(ImportJob, "_dependency_cache"):
-            ImportJob._dependency_cache.clear()
 
     def test_generate_import_jobs_from_importers(self):
         """Test generating ImportJobs from registered importers."""
@@ -186,13 +159,13 @@ class TestDataSlicerJobGeneration(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class TestModel2(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class TestImporter1(Importer):
             model = TestModel1
@@ -224,7 +197,7 @@ class TestDataSlicerJobGeneration(TestCase):
             active = models.BooleanField(default=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class TestImporter1(Importer):
             model = TestModel1
@@ -249,21 +222,21 @@ class TestDataSlicerJobGeneration(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class Shop(models.Model):
             name = models.CharField(max_length=100)
             tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class Product(models.Model):
             name = models.CharField(max_length=100)
             shop = models.ForeignKey(Shop, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class TenantImporter(Importer):
             model = Tenant
@@ -300,14 +273,14 @@ class TestDataSlicerJobGeneration(TestCase):
             b_ref = models.ForeignKey("ModelB", on_delete=models.CASCADE, null=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class ModelB(models.Model):
             name = models.CharField(max_length=100)
             a_ref = models.ForeignKey(ModelA, on_delete=models.CASCADE, null=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class ModelAImporter(Importer):
             model = ModelA
@@ -327,22 +300,8 @@ class TestDataSlicerJobGeneration(TestCase):
             slicer.generate_import_jobs()
 
 
-class TestDataSlicerExportOperations(TestCase):
+class TestDataSlicerExportOperations(DjangoGyroTestMixin, TestCase):
     """Test DataSlicer export operations."""
-
-    def setUp(self):
-        """Clear the registry before each test."""
-        if hasattr(Importer, "_registry"):
-            Importer._registry.clear()
-        if hasattr(ImportJob, "_dependency_cache"):
-            ImportJob._dependency_cache.clear()
-
-    def tearDown(self):
-        """Clean up after each test."""
-        if hasattr(Importer, "_registry"):
-            Importer._registry.clear()
-        if hasattr(ImportJob, "_dependency_cache"):
-            ImportJob._dependency_cache.clear()
 
     def test_export_to_csv_single_model(self):
         """Test exporting single model to CSV."""
@@ -351,7 +310,7 @@ class TestDataSlicerExportOperations(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class TestImporter(Importer):
             model = TestModel
@@ -379,14 +338,14 @@ class TestDataSlicerExportOperations(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class Product(models.Model):
             name = models.CharField(max_length=100)
             category = models.ForeignKey(Category, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class CategoryImporter(Importer):
             model = Category
@@ -421,7 +380,7 @@ class TestDataSlicerExportOperations(TestCase):
             active = models.BooleanField(default=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class TestImporter(Importer):
             model = TestModel
@@ -448,7 +407,7 @@ class TestDataSlicerExportOperations(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_data_slicer"
 
         class TestImporter(Importer):
             model = TestModel
