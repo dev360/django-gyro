@@ -38,7 +38,7 @@ class TestPostgresExportSQLGeneration(TestCase):
             active = models.BooleanField(default=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_sql_model1"
 
         class PgSqlImporter1(Importer):
@@ -73,7 +73,7 @@ class TestPostgresExportSQLGeneration(TestCase):
             active = models.BooleanField(default=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_sql_model2"
 
         class PgSqlImporter2(Importer):
@@ -104,7 +104,7 @@ class TestPostgresExportSQLGeneration(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_sql_model3"
 
         class PgSqlImporter3(Importer):
@@ -136,7 +136,7 @@ class TestPostgresExportSQLGeneration(TestCase):
             created_at = models.DateTimeField(auto_now_add=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_sql_model4"
 
         class PgSqlImporter4(Importer):
@@ -183,7 +183,7 @@ class TestPostgresExportCSVGeneration(TestCase):
             active = models.BooleanField(default=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_csv_model1"
 
         class PgCsvImporter1(Importer):
@@ -213,7 +213,7 @@ class TestPostgresExportCSVGeneration(TestCase):
             created_at = models.DateTimeField(auto_now_add=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_csv_model2"
 
         class PgCsvImporter2(Importer):
@@ -242,7 +242,7 @@ class TestPostgresExportCSVGeneration(TestCase):
             optional_field = models.CharField(max_length=100, null=True, blank=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_csv_model3"
 
         class PgCsvImporter3(Importer):
@@ -272,7 +272,7 @@ class TestPostgresExportCSVGeneration(TestCase):
             description = models.TextField()
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_csv_model4"
 
         class PgCsvImporter4(Importer):
@@ -318,7 +318,7 @@ class TestPostgresExportForeignKeyHandling(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_fk_category1"
 
         class PgFkProduct1(models.Model):
@@ -326,7 +326,7 @@ class TestPostgresExportForeignKeyHandling(TestCase):
             category = models.ForeignKey(PgFkCategory1, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_fk_product1"
 
         class PgFkCategoryImporter1(Importer):
@@ -358,7 +358,7 @@ class TestPostgresExportForeignKeyHandling(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_fk_category2"
 
         class PgFkProduct2(models.Model):
@@ -366,7 +366,7 @@ class TestPostgresExportForeignKeyHandling(TestCase):
             category = models.ForeignKey(PgFkCategory2, on_delete=models.CASCADE, null=True)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_fk_product2"
 
         class PgFkCategoryImporter2(Importer):
@@ -400,14 +400,14 @@ class TestPostgresExportForeignKeyHandling(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_fk_category3"
 
         class PgFkSupplier3(models.Model):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_fk_supplier3"
 
         class PgFkProduct3(models.Model):
@@ -416,7 +416,7 @@ class TestPostgresExportForeignKeyHandling(TestCase):
             supplier = models.ForeignKey(PgFkSupplier3, on_delete=models.CASCADE)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_fk_product3"
 
         class PgFkCategoryImporter3(Importer):
@@ -469,7 +469,7 @@ class TestPostgresExportProgressTracking(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_progress_model1"
 
         class PgProgressImporter1(Importer):
@@ -504,7 +504,7 @@ class TestPostgresExportProgressTracking(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_progress_model2"
 
         class PgProgressImporter2(Importer):
@@ -534,7 +534,7 @@ class TestPostgresExportProgressTracking(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_progress_model3"
 
         class PgProgressImporter3(Importer):
@@ -572,7 +572,7 @@ class TestPostgresExportProgressTracking(TestCase):
             name = models.CharField(max_length=100)
 
             class Meta:
-                app_label = "test"
+                app_label = "test_postgres_export"
                 db_table = "pg_progress_model4"
 
         class PgProgressImporter4(Importer):
