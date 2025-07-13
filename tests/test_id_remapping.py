@@ -7,8 +7,26 @@ during import operations to avoid conflicts.
 
 from unittest.mock import Mock
 
-import pandas as pd
 import pytest
+
+try:
+    import pandas as pd
+except ImportError:
+    # Mock pandas for testing environments where it's not available
+    class MockPandas:
+        @staticmethod
+        def Series(data):
+            return data
+
+        @staticmethod
+        def DataFrame(data):
+            return data
+
+        @staticmethod
+        def isna(value):
+            return value is None or value == ""
+
+    pd = MockPandas()
 from django.db import models
 
 from django_gyro.importing import (

@@ -82,14 +82,26 @@ class SequentialRemappingStrategy(IdRemappingStrategy):
 
     def generate_mapping(self, source_ids: Any, target_db: Any) -> Dict[int, int]:
         """Generate sequential ID mappings."""
-        import pandas as pd
+        try:
+            import pandas as pd
 
-        # Convert to pandas Series if needed
-        if not isinstance(source_ids, pd.Series):
-            source_ids = pd.Series(source_ids)
-
-        # Get unique source IDs to avoid duplicates
-        unique_source_ids = source_ids.drop_duplicates()
+            # Convert to pandas Series if needed
+            if not isinstance(source_ids, pd.Series):
+                source_ids = pd.Series(source_ids)
+            # Get unique source IDs to avoid duplicates
+            unique_source_ids = source_ids.drop_duplicates()
+        except ImportError:
+            # Fallback if pandas is not available
+            if isinstance(source_ids, (list, tuple)):
+                # Preserve order while removing duplicates
+                seen = set()
+                unique_source_ids = []
+                for sid in source_ids:
+                    if sid not in seen:
+                        seen.add(sid)
+                        unique_source_ids.append(sid)
+            else:
+                unique_source_ids = [source_ids]
 
         # Query database for current MAX(id)
         with target_db.cursor() as cursor:
@@ -118,37 +130,69 @@ class HashBasedRemappingStrategy(IdRemappingStrategy):
         """Generate hash-based ID mappings using business key."""
         import hashlib
 
-        import pandas as pd
-
-        # Ensure we have a DataFrame
-        if not isinstance(source_data, pd.DataFrame):
-            raise ValueError("HashBasedRemappingStrategy requires DataFrame input")
-
-        # Check if business key exists
-        if self.business_key not in source_data.columns:
-            raise ValueError(f"Business key '{self.business_key}' not found in data")
-
         mapping = {}
 
-        for _, row in source_data.iterrows():
-            source_id = row["id"]
-            business_value = row[self.business_key]
+        try:
+            import pandas as pd
 
-            # Skip empty business values
-            if pd.isna(business_value) or business_value == "":
-                continue
+            # Ensure we have a DataFrame
+            if not isinstance(source_data, pd.DataFrame):
+                raise ValueError("HashBasedRemappingStrategy requires DataFrame input")
 
-            # Generate deterministic hash-based ID
-            hash_input = f"{self.model._meta.label}_{business_value}"
-            hash_object = hashlib.md5(hash_input.encode())
-            # Use first 8 bytes of hash as integer (avoid collision in most cases)
-            hash_id = int(hash_object.hexdigest()[:8], 16)
+            # Check if business key exists
+            if self.business_key not in source_data.columns:
+                raise ValueError(f"Business key '{self.business_key}' not found in data")
 
-            # Ensure positive ID
-            if hash_id <= 0:
-                hash_id = abs(hash_id) + 1
+            for _, row in source_data.iterrows():
+                source_id = row["id"]
+                business_value = row[self.business_key]
 
-            mapping[source_id] = hash_id
+                # Skip empty business values
+                if pd.isna(business_value) or business_value == "":
+                    continue
+
+                # Generate deterministic hash-based ID
+                hash_input = f"{self.model._meta.label}_{business_value}"
+                hash_object = hashlib.md5(hash_input.encode())
+                # Use first 8 bytes of hash as integer (avoid collision in most cases)
+                hash_id = int(hash_object.hexdigest()[:8], 16)
+
+                # Ensure positive ID
+                if hash_id <= 0:
+                    hash_id = abs(hash_id) + 1
+
+                mapping[source_id] = hash_id
+
+        except ImportError:
+            # Fallback if pandas is not available
+            if not isinstance(source_data, dict) or "id" not in source_data or self.business_key not in source_data:
+                raise ValueError(
+                    "HashBasedRemappingStrategy requires dict with 'id' and business key when pandas not available"
+                ) from None
+
+            ids = source_data["id"] if isinstance(source_data["id"], list) else [source_data["id"]]
+            business_values = (
+                source_data[self.business_key]
+                if isinstance(source_data[self.business_key], list)
+                else [source_data[self.business_key]]
+            )
+
+            for source_id, business_value in zip(ids, business_values):
+                # Skip empty business values
+                if business_value is None or business_value == "":
+                    continue
+
+                # Generate deterministic hash-based ID
+                hash_input = f"{self.model._meta.label}_{business_value}"
+                hash_object = hashlib.md5(hash_input.encode())
+                # Use first 8 bytes of hash as integer (avoid collision in most cases)
+                hash_id = int(hash_object.hexdigest()[:8], 16)
+
+                # Ensure positive ID
+                if hash_id <= 0:
+                    hash_id = abs(hash_id) + 1
+
+                mapping[source_id] = hash_id
 
         return mapping
 
@@ -161,14 +205,20 @@ class NoRemappingStrategy(IdRemappingStrategy):
 
     def generate_mapping(self, source_ids: Any, target_db: Any = None) -> Dict[int, int]:
         """Generate identity mapping (no change)."""
-        import pandas as pd
+        try:
+            import pandas as pd
 
-        # Convert to pandas Series if needed
-        if not isinstance(source_ids, pd.Series):
-            source_ids = pd.Series(source_ids)
-
-        # Create identity mapping
-        return {source_id: source_id for source_id in source_ids}
+            # Convert to pandas Series if needed
+            if not isinstance(source_ids, pd.Series):
+                source_ids = pd.Series(source_ids)
+            # Create identity mapping
+            return {source_id: source_id for source_id in source_ids}
+        except ImportError:
+            # Fallback if pandas is not available
+            if isinstance(source_ids, (list, tuple)):
+                return {source_id: source_id for source_id in source_ids}
+            else:
+                return {source_ids: source_ids}
 
 
 class PostgresBulkLoader:
@@ -260,7 +310,10 @@ class PostgresBulkLoader:
         Returns:
             Dictionary with load statistics
         """
-        import pandas as pd
+        try:
+            import pandas as pd
+        except ImportError:
+            raise ImportError("pandas is required for load_csv_with_insert method") from None
 
         if not csv_path.exists():
             raise FileNotFoundError(f"CSV file not found: {csv_path}")

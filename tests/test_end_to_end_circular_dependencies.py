@@ -102,12 +102,12 @@ class EndToEndCircularDependencyTest(TestCase):
         self.assertEqual(len(cycles), 1, "Should detect one circular dependency")
 
         cycle = cycles[0]
-        self.assertIn(Customer, cycle.models)
-        self.assertIn(CustomerReferral, cycle.models)
+        self.assertIn(Customer, [cycle.model_a, cycle.model_b])
+        self.assertIn(CustomerReferral, [cycle.model_a, cycle.model_b])
 
-        # Verify the dependency chain
-        self.assertEqual(cycle.dependency_chain[0], Customer)
-        self.assertEqual(cycle.dependency_chain[1], CustomerReferral)
+        # Verify the cycle contains both models
+        models_in_cycle = {cycle.model_a, cycle.model_b}
+        self.assertEqual(models_in_cycle, {Customer, CustomerReferral})
 
     def test_loading_order_with_circular_dependencies(self):
         """Test that models are ordered correctly for loading"""

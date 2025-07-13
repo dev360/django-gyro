@@ -91,7 +91,7 @@ addopts = """\
     --strict-markers
     --ds=example.settings
     """
-pythonpath = "tests/server"
+pythonpath = ["tests/server", "src/example"]
 django_find_project = false
 markers = ["asyncio: mark test as async/await test"]
 filterwarnings = [
