@@ -24,7 +24,7 @@ class ExportPlan:
     """Represents a plan for exporting data with dependency analysis"""
     model: Type[Model]
     queryset: Optional[QuerySet]
-    
+
     def get_dependencies() -> Set[Type[Model]]
     def get_all_dependencies() -> Set[Type[Model]]
 
@@ -34,7 +34,7 @@ class ImportContext:
     id_mapping: Dict[str, Dict[int, int]]  # model_name -> {old_id: new_id}
     batch_size: int = 10000
     use_copy: bool = True  # PostgreSQL COPY for performance
-    
+
 class ImportPlan:
     """Represents a plan for importing data with remapping capabilities"""
     model: Type[Model]
@@ -54,7 +54,7 @@ class ImportBatch:
     plans: List[ImportPlan]
     context: ImportContext
     status: ImportStatus  # PENDING, IN_PROGRESS, COMPLETED, FAILED
-    
+
     def execute(self) -> ImportResult
 ```
 
@@ -68,7 +68,7 @@ class ImportBatch:
 
 ```python
 class PostgresBulkLoader:
-    def load_csv_with_copy(self, model: Type[Model], csv_path: Path, 
+    def load_csv_with_copy(self, model: Type[Model], csv_path: Path,
                           id_mapping: Optional[Dict[int, int]] = None):
         """
         1. Create temporary staging table
@@ -80,16 +80,16 @@ class PostgresBulkLoader:
             # Create staging table
             staging_table = f"import_staging_{model._meta.db_table}"
             cursor.execute(f"""
-                CREATE TEMP TABLE {staging_table} 
+                CREATE TEMP TABLE {staging_table}
                 (LIKE {model._meta.db_table} INCLUDING ALL)
             """)
-            
+
             # Use COPY for ultra-fast loading
             with open(csv_path, 'r') as f:
                 cursor.copy_expert(f"""
                     COPY {staging_table} FROM STDIN WITH CSV HEADER
                 """, f)
-            
+
             # Apply remapping and insert
             if id_mapping:
                 # Update foreign keys in staging table
@@ -99,7 +99,7 @@ class PostgresBulkLoader:
                         mapping = id_mapping.get(related_model._meta.label)
                         if mapping:
                             # Use CASE statement for efficient bulk update
-                            self._apply_fk_remapping(cursor, staging_table, 
+                            self._apply_fk_remapping(cursor, staging_table,
                                                    fk_field, mapping)
 ```
 
@@ -120,10 +120,10 @@ class CircularDependencyResolver:
         """
         # Use existing FKDependencyValidator logic
         validator = FKDependencyValidator(models)
-        
+
         # Identify circular dependencies
         circular_groups = validator.find_circular_dependencies()
-        
+
         # For circular dependencies, use PostgreSQL's DEFERRABLE constraints
         return [
             non_circular_models,  # Load first
@@ -131,7 +131,7 @@ class CircularDependencyResolver:
         ]
 
 class DeferredConstraintLoader:
-    def load_with_deferred_constraints(self, models: List[Type[Model]], 
+    def load_with_deferred_constraints(self, models: List[Type[Model]],
                                       import_context: ImportContext):
         """Load models with circular dependencies using deferred constraints"""
         with connection.cursor() as cursor:
@@ -154,13 +154,13 @@ class DeferredConstraintLoader:
 ```python
 class IdRemappingStrategy(ABC):
     @abstractmethod
-    def generate_mapping(self, source_ids: pd.Series, 
+    def generate_mapping(self, source_ids: pd.Series,
                         target_db: DatabaseWrapper) -> Dict[int, int]:
         pass
 
 class SequentialRemappingStrategy(IdRemappingStrategy):
     """Assigns new sequential IDs starting from MAX(existing_id) + 1"""
-    def generate_mapping(self, source_ids: pd.Series, 
+    def generate_mapping(self, source_ids: pd.Series,
                         target_db: DatabaseWrapper) -> Dict[int, int]:
         model = self.model
         with target_db.cursor() as cursor:
@@ -168,14 +168,14 @@ class SequentialRemappingStrategy(IdRemappingStrategy):
                 SELECT COALESCE(MAX(id), 0) FROM {model._meta.db_table}
             """)
             max_id = cursor.fetchone()[0]
-        
+
         # Create mapping: old_id -> new_id
         new_ids = range(max_id + 1, max_id + len(source_ids) + 1)
         return dict(zip(source_ids, new_ids))
 
 class HashBasedRemappingStrategy(IdRemappingStrategy):
     """Uses deterministic hashing for stable ID generation across imports"""
-    def generate_mapping(self, source_ids: pd.Series, 
+    def generate_mapping(self, source_ids: pd.Series,
                         unique_key: str) -> Dict[int, int]:
         # Generate stable IDs based on unique business key
         # Useful for idempotent imports
@@ -183,12 +183,12 @@ class HashBasedRemappingStrategy(IdRemappingStrategy):
 
 class PandasRemapper:
     """Efficient pandas-based data remapping before import"""
-    def remap_csv(self, csv_path: Path, id_mappings: Dict[str, Dict[int, int]], 
+    def remap_csv(self, csv_path: Path, id_mappings: Dict[str, Dict[int, int]],
                   model: Type[Model]) -> Path:
         # Read CSV in chunks for memory efficiency
         chunk_size = 50000
         output_path = csv_path.with_suffix('.remapped.csv')
-        
+
         with pd.read_csv(csv_path, chunksize=chunk_size) as reader:
             for i, chunk in enumerate(reader):
                 # Remap primary key
@@ -196,7 +196,7 @@ class PandasRemapper:
                     chunk['id'] = chunk['id'].map(
                         id_mappings[model._meta.label]
                     ).fillna(chunk['id'])
-                
+
                 # Remap foreign keys
                 for fk_field in model._meta.get_fields():
                     if isinstance(fk_field, models.ForeignKey):
@@ -209,11 +209,11 @@ class PandasRemapper:
                                 chunk[fk_column] = chunk[fk_column].map(
                                     related_mapping
                                 ).fillna(chunk[fk_column])
-                
+
                 # Write remapped chunk
-                chunk.to_csv(output_path, mode='a', 
+                chunk.to_csv(output_path, mode='a',
                            header=(i == 0), index=False)
-        
+
         return output_path
 ```
 
@@ -223,26 +223,26 @@ class PandasRemapper:
 class Command(BaseCommand):
     """
     Usage:
-    ./manage.py import_csv /path/to/export/dir --batch-name "prod_2024_01" 
+    ./manage.py import_csv /path/to/export/dir --batch-name "prod_2024_01"
                           --remap-strategy sequential --use-copy
     """
-    
+
     def add_arguments(self, parser):
         parser.add_argument('source_directory', type=Path)
         parser.add_argument('--batch-name', required=True)
-        parser.add_argument('--remap-strategy', 
-                          choices=['sequential', 'hash', 'none'], 
+        parser.add_argument('--remap-strategy',
+                          choices=['sequential', 'hash', 'none'],
                           default='sequential')
         parser.add_argument('--use-copy', action='store_true', default=True,
                           help='Use PostgreSQL COPY (fast) instead of ORM')
         parser.add_argument('--batch-size', type=int, default=10000)
         parser.add_argument('--dry-run', action='store_true')
-    
+
     def handle(self, *args, **options):
         # 1. Discovery phase
         csv_files = self._discover_csv_files(options['source_directory'])
         models = self._map_csv_to_models(csv_files)
-        
+
         # 2. Planning phase
         import_batch = ImportBatch(
             id=uuid4(),
@@ -253,17 +253,17 @@ class Command(BaseCommand):
                 use_copy=options['use_copy']
             )
         )
-        
+
         # 3. Dependency resolution
         resolver = CircularDependencyResolver()
         import_phases = resolver.resolve_import_order(models)
-        
+
         # 4. ID remapping planning
         if options['remap_strategy'] != 'none':
             remapping_plan = self._plan_remapping(
                 models, options['remap_strategy']
             )
-        
+
         # 5. Execution
         if options['dry_run']:
             self._print_execution_plan(import_phases, remapping_plan)
@@ -273,7 +273,7 @@ class Command(BaseCommand):
                 with connection.cursor() as cursor:
                     cursor.execute("SET session_replication_role = 'replica';")
                 try:
-                    self._execute_import(import_batch, import_phases, 
+                    self._execute_import(import_batch, import_phases,
                                        remapping_plan)
                 finally:
                     with connection.cursor() as cursor:
@@ -360,136 +360,136 @@ tests/
 # test_export_plan.py
 class TestExportPlan:
     """Tests for ExportPlan object behavior."""
-    
+
     def test_identifies_direct_dependencies(self):
         # Setup
         tenant_plan = ExportPlan(model=Tenant)
         shop_plan = ExportPlan(model=Shop)  # Shop has FK to Tenant
-        
+
         # Exercise
         dependencies = shop_plan.get_dependencies()
-        
+
         # Verify
         assert Tenant in dependencies
         assert len(dependencies) == 1
-        
+
         # Teardown (handled by test framework)
-    
+
     def test_caches_dependency_computation(self):
         # Setup
         plan = ExportPlan(model=Order)
-        
+
         # Exercise
         deps1 = plan.get_dependencies()
         deps2 = plan.get_dependencies()
-        
+
         # Verify
         assert deps1 is deps2  # Same object reference
-    
+
     def test_handles_self_referential_models(self):
         # Setup
         class Category(models.Model):
             parent = models.ForeignKey('self', null=True)
-        
+
         plan = ExportPlan(model=Category)
-        
+
         # Exercise & Verify
         assert plan.has_self_reference() is True
 
 # test_id_remapping.py
 class TestSequentialRemappingStrategy:
     """Tests for SequentialRemappingStrategy behavior."""
-    
+
     def test_generates_sequential_ids_from_max_plus_one(self):
         # Setup
         strategy = SequentialRemappingStrategy(model=Tenant)
         source_ids = pd.Series([100, 200, 300])
         mock_db = Mock()
         mock_db.cursor().fetchone.return_value = (5,)  # MAX(id) = 5
-        
+
         # Exercise
         mapping = strategy.generate_mapping(source_ids, mock_db)
-        
+
         # Verify
         assert mapping == {100: 6, 200: 7, 300: 8}
-    
+
     def test_handles_empty_target_table(self):
         # Setup
         strategy = SequentialRemappingStrategy(model=Tenant)
         source_ids = pd.Series([100])
         mock_db = Mock()
         mock_db.cursor().fetchone.return_value = (0,)  # No existing records
-        
+
         # Exercise
         mapping = strategy.generate_mapping(source_ids, mock_db)
-        
+
         # Verify
         assert mapping == {100: 1}
 
 # test_postgres_bulk_loader.py
 class TestPostgresBulkLoader:
     """Tests for PostgresBulkLoader behavior."""
-    
+
     def test_creates_staging_table_with_same_structure(self):
         # Setup
         loader = PostgresBulkLoader()
         mock_cursor = Mock()
-        
+
         # Exercise
         loader._create_staging_table(mock_cursor, Tenant)
-        
+
         # Verify
         mock_cursor.execute.assert_called_with(
             "CREATE TEMP TABLE import_staging_gyro_example_tenant "
             "(LIKE gyro_example_tenant INCLUDING ALL)"
         )
-    
+
     def test_applies_foreign_key_remapping_efficiently(self):
         # Setup
         loader = PostgresBulkLoader()
         mock_cursor = Mock()
         mapping = {1: 10, 2: 20, 3: 30}
-        
+
         # Exercise
         loader._apply_fk_remapping(
-            mock_cursor, 
+            mock_cursor,
             "staging_table",
             field_name="tenant_id",
             mapping=mapping
         )
-        
+
         # Verify
         # Should use CASE statement for bulk update
         call_args = mock_cursor.execute.call_args[0][0]
         assert "UPDATE staging_table SET tenant_id = CASE" in call_args
         assert "WHEN tenant_id = 1 THEN 10" in call_args
 
-# test_circular_resolver.py  
+# test_circular_resolver.py
 class TestCircularDependencyResolver:
     """Tests for CircularDependencyResolver behavior."""
-    
+
     def test_identifies_simple_circular_dependency(self):
         # Setup
         class ModelA(models.Model):
             b = models.ForeignKey('ModelB')
-        
+
         class ModelB(models.Model):
             a = models.ForeignKey('ModelA')
-        
+
         resolver = CircularDependencyResolver()
-        
+
         # Exercise
         phases = resolver.resolve_import_order([ModelA, ModelB])
-        
+
         # Verify
         assert len(phases) == 2
         assert phases[0] == []  # No non-circular models
         assert set(phases[1]) == {ModelA, ModelB}
-    
+
     def test_separates_circular_from_non_circular(self):
         # Setup
         resolver = CircularDependencyResolver()
-        
+
         # Exercise
         phases = resolver.resolve_import_order([
             Tenant,      # No dependencies
@@ -498,10 +498,10 @@ class TestCircularDependencyResolver:
             CircularA,   # Circular with CircularB
             CircularB    # Circular with CircularA
         ])
-        
+
         # Verify
         assert Tenant in phases[0]
-        assert Shop in phases[0] 
+        assert Shop in phases[0]
         assert CircularA in phases[1]
         assert CircularB in phases[1]
 ```
@@ -515,9 +515,9 @@ class TestCSVImportEndToEnd(TransactionTestCase):
     End-to-end test that exports from one database and imports to another.
     Uses Django's multi-database support for isolation.
     """
-    
+
     databases = {'default', 'import_target'}
-    
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -527,11 +527,11 @@ class TestCSVImportEndToEnd(TransactionTestCase):
             **settings.DATABASES['default'],
             'NAME': 'test_import_target',
         }
-    
+
     def test_export_from_source_import_to_target(self):
         # Setup - Create data in source database
         source_tenant = Tenant.objects.create(
-            id=1000, 
+            id=1000,
             name="Source Tenant",
             subdomain="source"
         )
@@ -540,7 +540,7 @@ class TestCSVImportEndToEnd(TransactionTestCase):
             tenant=source_tenant,
             name="Source Shop"
         )
-        
+
         with tempfile.TemporaryDirectory() as export_dir:
             # Exercise - Export from source
             export_result = DataSlicer.run(
@@ -551,47 +551,47 @@ class TestCSVImportEndToEnd(TransactionTestCase):
                     ImportJob(model=Shop)
                 ]
             )
-            
+
             # Exercise - Import to target with remapping
             import_context = ImportContext(
                 source_directory=export_dir,
                 target_database='import_target',
                 id_remapping_strategy=SequentialRemappingStrategy()
             )
-            
+
             importer = BulkCSVImporter(context=import_context)
             import_result = importer.execute()
-            
+
             # Verify - Check data in target database
             target_tenants = Tenant.objects.using('import_target').all()
             assert target_tenants.count() == 1
-            
+
             target_tenant = target_tenants.first()
             assert target_tenant.name == "Source Tenant"
             assert target_tenant.id != 1000  # ID was remapped
-            
+
             target_shops = Shop.objects.using('import_target').all()
             assert target_shops.count() == 1
-            
+
             target_shop = target_shops.first()
             assert target_shop.tenant_id == target_tenant.id  # FK remapped
             assert target_shop.id != 2000  # ID was remapped
-    
+
     def test_handles_circular_dependencies_with_deferred_constraints(self):
         # Setup - Create circular dependency data
         class Author(models.Model):
             favorite_book = models.ForeignKey('Book', null=True)
-        
+
         class Book(models.Model):
             author = models.ForeignKey(Author)
-        
+
         # Create data with circular reference
         with transaction.atomic():
             author = Author.objects.create(id=1)
             book = Book.objects.create(id=1, author=author)
             author.favorite_book = book
             author.save()
-        
+
         with tempfile.TemporaryDirectory() as export_dir:
             # Export
             DataSlicer.run(
@@ -599,31 +599,31 @@ class TestCSVImportEndToEnd(TransactionTestCase):
                 target=DataSlicer.File(export_dir),
                 jobs=[ImportJob(model=Author), ImportJob(model=Book)]
             )
-            
+
             # Import with circular dependency handling
             import_context = ImportContext(
                 source_directory=export_dir,
                 target_database='import_target',
                 handle_circular=True
             )
-            
+
             importer = BulkCSVImporter(context=import_context)
             result = importer.execute()
-            
+
             # Verify both imported successfully
             assert Author.objects.using('import_target').count() == 1
             assert Book.objects.using('import_target').count() == 1
-            
+
             # Verify circular reference maintained
             imported_author = Author.objects.using('import_target').first()
             imported_book = Book.objects.using('import_target').first()
             assert imported_author.favorite_book == imported_book
             assert imported_book.author == imported_author
-    
+
     def test_performance_with_large_dataset(self):
         # Setup - Generate large dataset
         self._generate_test_data(tenant_count=10, customers_per_tenant=10000)
-        
+
         with tempfile.TemporaryDirectory() as export_dir:
             # Export
             start_time = time.time()
@@ -633,7 +633,7 @@ class TestCSVImportEndToEnd(TransactionTestCase):
                 jobs=[ImportJob(model=Tenant), ImportJob(model=Customer)]
             )
             export_time = time.time() - start_time
-            
+
             # Import with COPY
             import_context = ImportContext(
                 source_directory=export_dir,
@@ -641,15 +641,15 @@ class TestCSVImportEndToEnd(TransactionTestCase):
                 use_copy=True,
                 batch_size=50000
             )
-            
+
             start_time = time.time()
             importer = BulkCSVImporter(context=import_context)
             importer.execute()
             import_time = time.time() - start_time
-            
+
             # Verify performance
             assert import_time < 30  # Should complete in < 30 seconds
-            
+
             # Verify data integrity
             assert Customer.objects.using('import_target').count() == 100000
 ```
@@ -660,14 +660,14 @@ class TestCSVImportEndToEnd(TransactionTestCase):
 # tests/fixtures.py
 class DatabaseFixture:
     """Manages test database setup and teardown."""
-    
+
     @staticmethod
     def create_import_target_db():
         """Creates a separate database for import testing."""
         from django.db import connection
         with connection.cursor() as cursor:
             cursor.execute("CREATE DATABASE test_import_target")
-    
+
     @staticmethod
     def cleanup_import_target_db():
         """Removes test import database."""
@@ -678,7 +678,7 @@ class DatabaseFixture:
 # tests/factories.py
 class TenantFactory:
     """Factory for creating test Tenant instances."""
-    
+
     @staticmethod
     def create_batch(count, **kwargs):
         return [
@@ -698,32 +698,32 @@ class TenantFactory:
 class Command(BaseCommand):
     """
     Enhanced end-to-end test that exports from one DB and imports to another.
-    
+
     Usage:
         python manage.py test_import_export --source-db default --target-db import_test
     """
-    
+
     def add_arguments(self, parser):
         parser.add_argument('--source-db', default='default')
         parser.add_argument('--target-db', default='import_test')
         parser.add_argument('--use-copy', action='store_true', default=True)
         parser.add_argument('--verify', action='store_true', default=True)
-    
+
     def handle(self, *args, **options):
         # Step 1: Export from source database
         export_dir = self._export_data(options['source_db'])
-        
+
         # Step 2: Import to target database with remapping
         import_result = self._import_data(
-            export_dir, 
+            export_dir,
             options['target_db'],
             use_copy=options['use_copy']
         )
-        
+
         # Step 3: Verify data integrity if requested
         if options['verify']:
             self._verify_import(options['source_db'], options['target_db'])
-    
+
     def _import_data(self, source_dir, target_db, use_copy=True):
         """Directly call the import logic without management command."""
         context = ImportContext(
@@ -732,10 +732,10 @@ class Command(BaseCommand):
             id_remapping_strategy=SequentialRemappingStrategy(),
             use_copy=use_copy
         )
-        
+
         importer = BulkCSVImporter(context=context)
         return importer.execute()
-    
+
     def _verify_import(self, source_db, target_db):
         """Verify data was imported correctly using .using() syntax."""
         # Count comparisons
@@ -743,13 +743,13 @@ class Command(BaseCommand):
             source_count = model.objects.using(source_db).count()
             target_count = model.objects.using(target_db).count()
             assert source_count == target_count, f"{model} count mismatch"
-        
+
         # Verify FK relationships maintained
         source_shop = Shop.objects.using(source_db).first()
         target_shop = Shop.objects.using(target_db).filter(
             name=source_shop.name
         ).first()
-        
+
         assert target_shop.tenant.name == source_shop.tenant.name
 ```
 

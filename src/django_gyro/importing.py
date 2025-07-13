@@ -6,10 +6,11 @@ back into Django models with support for ID remapping, bulk loading,
 and circular dependency resolution.
 """
 
-from pathlib import Path
-from typing import Dict, Optional, List, Any, Set, Type
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Type
+
 from django.db import models
 
 
@@ -17,47 +18,48 @@ from django.db import models
 class ImportContext:
     """
     Manages the stateful context of an import operation.
-    
+
     This value object holds all the configuration and state needed
     during a CSV import operation, including ID mappings, target database,
     and import progress tracking.
     """
+
     source_directory: Path
     batch_size: int = 10000
     use_copy: bool = True
-    target_database: str = 'default'
-    id_remapping_strategy: Optional['IdRemappingStrategy'] = None
-    
+    target_database: str = "default"
+    id_remapping_strategy: Optional["IdRemappingStrategy"] = None
+
     # Internal state - not part of equality comparison
     id_mapping: Dict[str, Dict[int, int]] = field(default_factory=dict, compare=False)
     _imported_models: set = field(default_factory=set, compare=False)
-    
+
     def __post_init__(self):
         """Validate the context after initialization."""
         if not isinstance(self.source_directory, Path):
             self.source_directory = Path(self.source_directory)
-        
+
         if not self.source_directory.exists():
             raise ValueError(f"Source directory does not exist: {self.source_directory}")
-    
+
     def add_id_mapping(self, model_label: str, old_id: int, new_id: int) -> None:
         """Add an ID mapping for a model."""
         if model_label not in self.id_mapping:
             self.id_mapping[model_label] = {}
         self.id_mapping[model_label][old_id] = new_id
-    
+
     def get_id_mapping(self, model_label: str, old_id: int) -> Optional[int]:
         """Get the new ID for an old ID, or None if not mapped."""
         return self.id_mapping.get(model_label, {}).get(old_id)
-    
+
     def mark_model_imported(self, model_label: str) -> None:
         """Mark a model as having been imported."""
         self._imported_models.add(model_label)
-    
+
     def is_model_imported(self, model_label: str) -> bool:
         """Check if a model has been imported."""
         return model_label in self._imported_models
-    
+
     def discover_csv_files(self) -> List[Path]:
         """Discover all CSV files in the source directory."""
         return sorted(self.source_directory.glob("*.csv"))
@@ -65,7 +67,7 @@ class ImportContext:
 
 class IdRemappingStrategy(ABC):
     """Abstract base class for ID remapping strategies."""
-    
+
     @abstractmethod
     def generate_mapping(self, source_ids: Any, target_db: Any) -> Dict[int, int]:
         """Generate a mapping from old IDs to new IDs."""
@@ -74,96 +76,97 @@ class IdRemappingStrategy(ABC):
 
 class SequentialRemappingStrategy(IdRemappingStrategy):
     """Assigns new sequential IDs starting from MAX(existing_id) + 1."""
-    
+
     def __init__(self, model):
         self.model = model
-    
+
     def generate_mapping(self, source_ids: Any, target_db: Any) -> Dict[int, int]:
         """Generate sequential ID mappings."""
         import pandas as pd
-        
+
         # Convert to pandas Series if needed
         if not isinstance(source_ids, pd.Series):
             source_ids = pd.Series(source_ids)
-        
+
         # Get unique source IDs to avoid duplicates
         unique_source_ids = source_ids.drop_duplicates()
-        
+
         # Query database for current MAX(id)
         with target_db.cursor() as cursor:
             cursor.execute(f"SELECT COALESCE(MAX(id), 0) FROM {self.model._meta.db_table}")
             max_id = cursor.fetchone()[0]
-        
+
         # Generate sequential mappings
         mapping = {}
         next_id = max_id + 1
-        
+
         for source_id in unique_source_ids:
             mapping[source_id] = next_id
             next_id += 1
-        
+
         return mapping
 
 
 class HashBasedRemappingStrategy(IdRemappingStrategy):
     """Uses deterministic hashing for stable ID generation across imports."""
-    
+
     def __init__(self, model, business_key: str):
         self.model = model
         self.business_key = business_key
-    
+
     def generate_mapping(self, source_data: Any) -> Dict[int, int]:
         """Generate hash-based ID mappings using business key."""
-        import pandas as pd
         import hashlib
-        
+
+        import pandas as pd
+
         # Ensure we have a DataFrame
         if not isinstance(source_data, pd.DataFrame):
             raise ValueError("HashBasedRemappingStrategy requires DataFrame input")
-        
+
         # Check if business key exists
         if self.business_key not in source_data.columns:
             raise ValueError(f"Business key '{self.business_key}' not found in data")
-        
+
         mapping = {}
-        
+
         for _, row in source_data.iterrows():
-            source_id = row['id']
+            source_id = row["id"]
             business_value = row[self.business_key]
-            
+
             # Skip empty business values
-            if pd.isna(business_value) or business_value == '':
+            if pd.isna(business_value) or business_value == "":
                 continue
-            
+
             # Generate deterministic hash-based ID
             hash_input = f"{self.model._meta.label}_{business_value}"
             hash_object = hashlib.md5(hash_input.encode())
             # Use first 8 bytes of hash as integer (avoid collision in most cases)
             hash_id = int(hash_object.hexdigest()[:8], 16)
-            
+
             # Ensure positive ID
             if hash_id <= 0:
                 hash_id = abs(hash_id) + 1
-            
+
             mapping[source_id] = hash_id
-        
+
         return mapping
 
 
 class NoRemappingStrategy(IdRemappingStrategy):
     """Identity strategy that doesn't remap IDs (leaves them unchanged)."""
-    
+
     def __init__(self, model):
         self.model = model
-    
+
     def generate_mapping(self, source_ids: Any, target_db: Any = None) -> Dict[int, int]:
         """Generate identity mapping (no change)."""
         import pandas as pd
-        
+
         # Convert to pandas Series if needed
         if not isinstance(source_ids, pd.Series):
             source_ids = pd.Series(source_ids)
-        
+
         # Create identity mapping
         return {source_id: source_id for source_id in source_ids}
 
@@ -171,20 +174,26 @@ class NoRemappingStrategy(IdRemappingStrategy):
 class PostgresBulkLoader:
     """
     Service for high-performance bulk loading of CSV data into PostgreSQL.
-    
+
     Uses PostgreSQL's COPY command with staging tables for optimal performance
     and supports ID remapping during the load process.
     """
-    
+
     def __init__(self):
         self.batch_size = 10000
-    
-    def load_csv_with_copy(self, model: Type[models.Model], csv_path: Path, 
-                          connection: Any, id_mappings: Optional[Dict[str, Dict[int, int]]] = None,
-                          on_conflict: str = 'raise', cleanup_staging: bool = True) -> Dict[str, Any]:
+
+    def load_csv_with_copy(
+        self,
+        model: Type[models.Model],
+        csv_path: Path,
+        connection: Any,
+        id_mappings: Optional[Dict[str, Dict[int, int]]] = None,
+        on_conflict: str = "raise",
+        cleanup_staging: bool = True,
+    ) -> Dict[str, Any]:
         """
         Load CSV data using PostgreSQL COPY for high performance.
-        
+
         Args:
             model: Django model to load data into
             csv_path: Path to CSV file
@@ -192,107 +201,104 @@ class PostgresBulkLoader:
             id_mappings: Optional ID remapping dictionary
             on_conflict: How to handle conflicts ('raise', 'ignore', 'update')
             cleanup_staging: Whether to clean up staging table after load
-            
+
         Returns:
             Dictionary with load statistics
         """
         if not csv_path.exists():
             raise FileNotFoundError(f"CSV file not found: {csv_path}")
-        
+
         staging_table = f"import_staging_{model._meta.db_table}"
-        
+
         with connection.cursor() as cursor:
             try:
                 # Step 1: Create staging table
                 self._create_staging_table(cursor, model)
-                
+
                 # Step 2: Copy CSV data to staging table
                 self._copy_csv_to_staging(cursor, csv_path, model)
-                
+
                 # Step 3: Apply ID remapping if provided
                 if id_mappings:
                     self._apply_id_remappings(cursor, model, staging_table, id_mappings)
-                
+
                 # Step 4: Insert from staging to target table
                 rows_loaded = self._insert_from_staging(cursor, model, on_conflict)
-                
+
                 # Step 5: Clean up staging table if requested
                 if cleanup_staging:
                     self._cleanup_staging_table(cursor, staging_table)
-                
-                return {
-                    'rows_loaded': rows_loaded,
-                    'staging_table': staging_table,
-                    'used_copy': True
-                }
-            
+
+                return {"rows_loaded": rows_loaded, "staging_table": staging_table, "used_copy": True}
+
             except Exception as e:
                 # Clean up staging table on error
                 try:
                     self._cleanup_staging_table(cursor, staging_table)
-                except:
+                except Exception:
                     pass  # Ignore cleanup errors
                 raise e
-    
-    def load_csv_with_insert(self, model: Type[models.Model], csv_path: Path,
-                            connection: Any, batch_size: int = 1000,
-                            id_mappings: Optional[Dict[str, Dict[int, int]]] = None) -> Dict[str, Any]:
+
+    def load_csv_with_insert(
+        self,
+        model: Type[models.Model],
+        csv_path: Path,
+        connection: Any,
+        batch_size: int = 1000,
+        id_mappings: Optional[Dict[str, Dict[int, int]]] = None,
+    ) -> Dict[str, Any]:
         """
         Load CSV data using batched INSERT statements (fallback when COPY not available).
-        
+
         Args:
             model: Django model to load data into
             csv_path: Path to CSV file
             connection: Database connection
             batch_size: Number of rows to insert per batch
             id_mappings: Optional ID remapping dictionary
-            
+
         Returns:
             Dictionary with load statistics
         """
         import pandas as pd
-        
+
         if not csv_path.exists():
             raise FileNotFoundError(f"CSV file not found: {csv_path}")
-        
+
         # Read CSV in chunks for memory efficiency
         total_rows = 0
-        
+
         with connection.cursor() as cursor:
             for chunk in pd.read_csv(csv_path, chunksize=batch_size):
                 # Apply ID remapping if provided
                 if id_mappings:
                     chunk = self._apply_pandas_remapping(chunk, model, id_mappings)
-                
+
                 # Generate INSERT statements
                 rows_inserted = self._insert_dataframe_batch(cursor, chunk, model)
                 total_rows += rows_inserted
-        
-        return {
-            'rows_loaded': total_rows,
-            'used_copy': False
-        }
-    
-    def load_csv_batch(self, model: Type[models.Model], csv_paths: List[Path],
-                      connection: Any, **kwargs) -> List[Dict[str, Any]]:
+
+        return {"rows_loaded": total_rows, "used_copy": False}
+
+    def load_csv_batch(
+        self, model: Type[models.Model], csv_paths: List[Path], connection: Any, **kwargs
+    ) -> List[Dict[str, Any]]:
         """Load multiple CSV files in batch."""
         results = []
-        
+
         for csv_path in csv_paths:
             result = self.load_csv_with_copy(model, csv_path, connection, **kwargs)
             results.append(result)
-        
+
         return results
-    
-    def load_csv_with_context(self, model: Type[models.Model], csv_path: Path,
-                             context: 'ImportContext', connection: Any) -> Dict[str, Any]:
+
+    def load_csv_with_context(
+        self, model: Type[models.Model], csv_path: Path, context: "ImportContext", connection: Any
+    ) -> Dict[str, Any]:
         """Load CSV using ImportContext configuration."""
         if context.use_copy:
             return self.load_csv_with_copy(
-                model=model,
-                csv_path=csv_path,
-                connection=connection,
-                id_mappings=context.id_mapping
+                model=model, csv_path=csv_path, connection=connection, id_mappings=context.id_mapping
             )
         else:
             return self.load_csv_with_insert(
@@ -300,109 +306,110 @@ class PostgresBulkLoader:
                 csv_path=csv_path,
                 connection=connection,
                 batch_size=context.batch_size,
-                id_mappings=context.id_mapping
+                id_mappings=context.id_mapping,
             )
-    
+
     def _create_staging_table(self, cursor: Any, model: Type[models.Model]) -> None:
         """Create temporary staging table with same structure as target table."""
         staging_table = f"import_staging_{model._meta.db_table}"
-        
+
         sql = f"CREATE TEMP TABLE {staging_table} (LIKE {model._meta.db_table} INCLUDING ALL)"
-        
+
         cursor.execute(sql)
-    
+
     def _copy_csv_to_staging(self, cursor: Any, csv_path: Path, model: Type[models.Model]) -> None:
         """Copy CSV data to staging table using PostgreSQL COPY command."""
         staging_table = f"import_staging_{model._meta.db_table}"
-        
+
         copy_sql = f"COPY {staging_table} FROM STDIN WITH CSV HEADER"
-        
-        with open(csv_path, 'r') as f:
+
+        with open(csv_path) as f:
             cursor.copy_expert(copy_sql, f)
-    
-    def _apply_id_remappings(self, cursor: Any, model: Type[models.Model], 
-                           staging_table: str, id_mappings: Dict[str, Dict[int, int]]) -> None:
+
+    def _apply_id_remappings(
+        self, cursor: Any, model: Type[models.Model], staging_table: str, id_mappings: Dict[str, Dict[int, int]]
+    ) -> None:
         """Apply ID remappings to staging table."""
         # Remap primary key if needed
         model_label = f"{model._meta.app_label}.{model.__name__}"
         if model_label in id_mappings:
             self._apply_fk_remapping(cursor, staging_table, "id", id_mappings[model_label])
-        
+
         # Remap foreign keys
-        for field in model._meta.get_fields():
-            if isinstance(field, models.ForeignKey):
-                related_model = field.related_model
+        for model_field in model._meta.get_fields():
+            if isinstance(model_field, models.ForeignKey):
+                related_model = model_field.related_model
                 related_label = f"{related_model._meta.app_label}.{related_model.__name__}"
-                
+
                 if related_label in id_mappings:
-                    fk_column = f"{field.name}_id"
+                    fk_column = f"{model_field.name}_id"
                     self._apply_fk_remapping(cursor, staging_table, fk_column, id_mappings[related_label])
-    
-    def _apply_fk_remapping(self, cursor: Any, staging_table: str, 
-                          column_name: str, mapping: Dict[int, int]) -> None:
+
+    def _apply_fk_remapping(self, cursor: Any, staging_table: str, column_name: str, mapping: Dict[int, int]) -> None:
         """Apply foreign key remapping using efficient CASE statement."""
         if not mapping:
             return
-        
+
         # Build CASE statement for efficient bulk update
         case_clauses = []
         for old_id, new_id in mapping.items():
             case_clauses.append(f"WHEN {column_name} = {old_id} THEN {new_id}")
-        
-        old_ids = ', '.join(str(old_id) for old_id in mapping.keys())
-        
+
+        old_ids = ", ".join(str(old_id) for old_id in mapping.keys())
+
         sql = f"UPDATE {staging_table} SET {column_name} = CASE {' '.join(case_clauses)} END WHERE {column_name} IN ({old_ids})"
-        
+
         cursor.execute(sql)
-    
-    def _insert_from_staging(self, cursor: Any, model: Type[models.Model], 
-                           on_conflict: str = 'raise') -> int:
+
+    def _insert_from_staging(self, cursor: Any, model: Type[models.Model], on_conflict: str = "raise") -> int:
         """Insert data from staging table to target table."""
         staging_table = f"import_staging_{model._meta.db_table}"
         target_table = model._meta.db_table
-        
+
         # Build INSERT statement
         base_sql = f"INSERT INTO {target_table} SELECT * FROM {staging_table}"
-        
-        if on_conflict == 'ignore':
+
+        if on_conflict == "ignore":
             sql = f"{base_sql} ON CONFLICT DO NOTHING"
-        elif on_conflict == 'update':
+        elif on_conflict == "update":
             # This would need more sophisticated handling for specific conflicts
             sql = f"{base_sql} ON CONFLICT DO NOTHING"  # Simplified for now
         else:
             sql = base_sql
-        
+
         cursor.execute(sql)
         return cursor.rowcount
-    
+
     def _cleanup_staging_table(self, cursor: Any, staging_table: str) -> None:
         """Clean up staging table."""
         cursor.execute(f"DROP TABLE IF EXISTS {staging_table}")
-    
-    def _apply_pandas_remapping(self, df: Any, model: Type[models.Model], 
-                              id_mappings: Dict[str, Dict[int, int]]) -> Any:
+
+    def _apply_pandas_remapping(
+        self, df: Any, model: Type[models.Model], id_mappings: Dict[str, Dict[int, int]]
+    ) -> Any:
         """Apply ID remapping to pandas DataFrame."""
         # Remap primary key
         model_label = f"{model._meta.app_label}.{model.__name__}"
-        if model_label in id_mappings and 'id' in df.columns:
-            df['id'] = df['id'].map(id_mappings[model_label]).fillna(df['id'])
-        
+        if model_label in id_mappings and "id" in df.columns:
+            df["id"] = df["id"].map(id_mappings[model_label]).fillna(df["id"])
+
         # Remap foreign keys
-        for field in model._meta.get_fields():
-            if isinstance(field, models.ForeignKey):
-                related_model = field.related_model
+        for model_field in model._meta.get_fields():
+            if isinstance(model_field, models.ForeignKey):
+                related_model = model_field.related_model
                 related_label = f"{related_model._meta.app_label}.{related_model.__name__}"
-                fk_column = f"{field.name}_id"
-                
+                fk_column = f"{model_field.name}_id"
+
                 if related_label in id_mappings and fk_column in df.columns:
                     df[fk_column] = df[fk_column].map(id_mappings[related_label]).fillna(df[fk_column])
-        
+
         return df
 
 
 @dataclass
 class CircularDependency:
     """Represents a circular dependency between two models."""
+
     model_a: Type[models.Model]
     model_b: Type[models.Model]
     field_a: str  # Field in model_a that references model_b
@@ -413,7 +420,7 @@ class CircularDependency:
 class CircularDependencyResolver:
     """
     Resolves circular dependencies during import by using deferred updates.
-    
+
     Strategy:
     1. Detect circular dependencies between models
     2. For each circular pair, identify nullable FK field
@@ -421,110 +428,115 @@ class CircularDependencyResolver:
     4. Load second model with proper FK references
     5. Update first model's nullable FK with correct values
     """
-    
+
     def __init__(self):
         self.detected_cycles = []
         self.deferred_updates = []
-    
+
     def detect_circular_dependencies(self, models: List[Type[models.Model]]) -> List[CircularDependency]:
         """
         Detect circular dependencies between the given models.
-        
+
         Args:
             models: List of Django model classes to analyze
-            
+
         Returns:
             List of CircularDependency objects
         """
         cycles = []
-        
+
         for i, model_a in enumerate(models):
-            for j, model_b in enumerate(models[i+1:], i+1):
+            for _j, model_b in enumerate(models[i + 1 :], i + 1):
                 cycle = self._find_cycle_between_models(model_a, model_b)
                 if cycle:
                     cycles.append(cycle)
-        
+
         self.detected_cycles = cycles
         return cycles
-    
-    def _find_cycle_between_models(self, model_a: Type[models.Model], 
-                                  model_b: Type[models.Model]) -> Optional[CircularDependency]:
+
+    def _find_cycle_between_models(
+        self, model_a: Type[models.Model], model_b: Type[models.Model]
+    ) -> Optional[CircularDependency]:
         """Check if there's a circular dependency between two specific models."""
-        
+
         # Find FK from model_a to model_b
         field_a_to_b = None
-        for field in model_a._meta.get_fields():
-            if isinstance(field, models.ForeignKey):
+        for model_field in model_a._meta.get_fields():
+            if isinstance(model_field, models.ForeignKey):
                 # Handle both class references and string references
-                related_model = field.related_model
-                if hasattr(related_model, '_meta'):
+                related_model = model_field.related_model
+                if hasattr(related_model, "_meta"):
                     # Direct class reference
                     if related_model == model_b:
-                        field_a_to_b = field.name
+                        field_a_to_b = model_field.name
                         break
                 else:
                     # String reference - compare by name
-                    if (related_model == model_b.__name__ or 
-                        related_model == f"{model_b._meta.app_label}.{model_b.__name__}"):
-                        field_a_to_b = field.name
+                    if (
+                        related_model == model_b.__name__
+                        or related_model == f"{model_b._meta.app_label}.{model_b.__name__}"
+                    ):
+                        field_a_to_b = model_field.name
                         break
-        
-        # Find FK from model_b to model_a  
+
+        # Find FK from model_b to model_a
         field_b_to_a = None
-        for field in model_b._meta.get_fields():
-            if isinstance(field, models.ForeignKey):
+        for model_field in model_b._meta.get_fields():
+            if isinstance(model_field, models.ForeignKey):
                 # Handle both class references and string references
-                related_model = field.related_model
-                if hasattr(related_model, '_meta'):
+                related_model = model_field.related_model
+                if hasattr(related_model, "_meta"):
                     # Direct class reference
                     if related_model == model_a:
-                        field_b_to_a = field.name
+                        field_b_to_a = model_field.name
                         break
                 else:
                     # String reference - compare by name
-                    if (related_model == model_a.__name__ or 
-                        related_model == f"{model_a._meta.app_label}.{model_a.__name__}"):
-                        field_b_to_a = field.name
+                    if (
+                        related_model == model_a.__name__
+                        or related_model == f"{model_a._meta.app_label}.{model_a.__name__}"
+                    ):
+                        field_b_to_a = model_field.name
                         break
-        
+
         # If both FKs exist, we have a circular dependency
         if field_a_to_b and field_b_to_a:
             # Determine which field is nullable
             field_a_nullable = model_a._meta.get_field(field_a_to_b).null
             field_b_nullable = model_b._meta.get_field(field_b_to_a).null
-            
+
             nullable_field = None
             if field_a_nullable:
                 nullable_field = field_a_to_b
             elif field_b_nullable:
                 nullable_field = field_b_to_a
-            
+
             return CircularDependency(
                 model_a=model_a,
                 model_b=model_b,
                 field_a=field_a_to_b,
                 field_b=field_b_to_a,
-                nullable_field=nullable_field
+                nullable_field=nullable_field,
             )
-        
+
         return None
-    
+
     def resolve_loading_order(self, models: List[Type[models.Model]]) -> List[Type[models.Model]]:
         """
         Determine the optimal loading order considering circular dependencies.
-        
+
         For circular dependencies, we load the model with nullable FK first.
         """
         cycles = self.detect_circular_dependencies(models)
-        
+
         if not cycles:
             # No cycles, return topological sort
             return self._topological_sort(models)
-        
+
         # Handle cycles by modifying the dependency graph
         modified_order = []
         processed = set()
-        
+
         for cycle in cycles:
             if cycle.nullable_field:
                 # Load the model with nullable FK first (without FK values)
@@ -544,75 +556,77 @@ class CircularDependencyResolver:
                     if cycle.model_a not in processed:
                         modified_order.append(cycle.model_a)
                         processed.add(cycle.model_a)
-        
+
         # Add remaining models
         for model in models:
             if model not in processed:
                 modified_order.append(model)
-        
+
         return modified_order
-    
+
     def _topological_sort(self, models: List[Type[models.Model]]) -> List[Type[models.Model]]:
         """Simple topological sort for models without cycles."""
         # This is a simplified version - in practice you'd want proper topological sorting
         return models
-    
-    def prepare_deferred_updates(self, cycles: List[CircularDependency], 
-                                csv_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+
+    def prepare_deferred_updates(
+        self, cycles: List[CircularDependency], csv_data: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
         """
         Prepare deferred update operations for circular dependencies.
-        
+
         Args:
             cycles: List of detected circular dependencies
             csv_data: Dictionary of CSV data keyed by model name
-            
+
         Returns:
             List of update operations to execute after initial load
         """
         updates = []
-        
+
         for cycle in cycles:
             if not cycle.nullable_field:
                 continue
-                
+
             # Determine which model has the nullable field
             if cycle.nullable_field in [f.name for f in cycle.model_a._meta.get_fields()]:
                 source_model = cycle.model_a
-                target_model = cycle.model_b
                 nullable_field = cycle.nullable_field
             else:
-                source_model = cycle.model_b  
-                target_model = cycle.model_a
+                source_model = cycle.model_b
                 nullable_field = cycle.field_b
-            
+
             # Read original CSV data to get the FK mappings
             # Try multiple possible key formats
             source_csv_key = f"{source_model._meta.app_label}_{source_model._meta.model_name}"
             if source_csv_key not in csv_data:
                 # Try without app label prefix
                 source_csv_key = source_model._meta.model_name
-            
+
             if source_csv_key in csv_data:
                 source_data = csv_data[source_csv_key]
-                
+
                 # Extract ID mappings for deferred update
                 for row in source_data:
                     if row.get(nullable_field):  # If the FK was supposed to be set
-                        updates.append({
-                            'model': source_model,
-                            'pk': row['id'],
-                            'field': nullable_field,
-                            'value': row[nullable_field]
-                        })
-        
+                        updates.append(
+                            {
+                                "model": source_model,
+                                "pk": row["id"],
+                                "field": nullable_field,
+                                "value": row[nullable_field],
+                            }
+                        )
+
         self.deferred_updates = updates
         return updates
-    
-    def execute_deferred_updates(self, updates: List[Dict[str, Any]], 
-                                connection: Any, id_mappings: Dict[str, Dict[int, int]]):
+
+    def execute_deferred_updates(
+        self, updates: List[Dict[str, Any]], connection: Any, id_mappings: Dict[str, Dict[int, int]]
+    ):
         """
         Execute the deferred FK updates after initial loading.
-        
+
         Args:
             updates: List of update operations
             connection: Database connection
@@ -620,23 +634,23 @@ class CircularDependencyResolver:
         """
         with connection.cursor() as cursor:
             for update in updates:
-                model = update['model']
-                pk = update['pk']
-                field = update['field']
-                original_fk_value = update['value']
-                
+                model = update["model"]
+                pk = update["pk"]
+                field = update["field"]
+                original_fk_value = update["value"]
+
                 # Apply ID remapping to both PK and FK
                 model_key = f"{model._meta.app_label}.{model.__name__}"
-                
+
                 # Remap the record's PK
                 new_pk = id_mappings.get(model_key, {}).get(pk, pk)
-                
-                # Remap the FK value  
+
+                # Remap the FK value
                 fk_field = model._meta.get_field(field)
                 related_model = fk_field.related_model
                 related_key = f"{related_model._meta.app_label}.{related_model.__name__}"
                 new_fk_value = id_mappings.get(related_key, {}).get(original_fk_value, original_fk_value)
-                
+
                 # Execute the update
                 sql = f"UPDATE {model._meta.db_table} SET {field} = %s WHERE id = %s"
                 cursor.execute(sql, [new_fk_value, new_pk])
@@ -645,73 +659,72 @@ class CircularDependencyResolver:
 class TenantAwareRemappingStrategy:
     """
     Tenant-aware ID remapping that automatically applies tenant mappings to all related models.
-    
+
     Usage:
         strategy = TenantAwareRemappingStrategy(
             tenant_model=Organization,
             tenant_mappings={1060: 10}  # staging org_id 1060 -> local org_id 10
         )
     """
-    
+
     def __init__(self, tenant_model: Type[models.Model], tenant_mappings: Dict[int, int]):
         self.tenant_model = tenant_model
         self.tenant_mappings = tenant_mappings
         self.tenant_field_name = self._get_tenant_field_name()
-    
+
     def _get_tenant_field_name(self) -> str:
         """Get the common field name used for tenant FKs (e.g., 'organization_id', 'org_id')."""
         # This could be made configurable, but we'll use a common pattern
         model_name = self.tenant_model._meta.model_name.lower()
         return f"{model_name}_id"
-    
+
     def apply_to_all_models(self, models: List[Type[models.Model]]) -> Dict[str, Dict[int, int]]:
         """
         Generate ID mappings for all models, automatically applying tenant remapping.
-        
+
         Args:
             models: List of Django models to generate mappings for
-            
+
         Returns:
             Complete ID mapping dictionary ready for PostgresBulkLoader
         """
         id_mappings = {}
-        
+
         # Add tenant model mapping
         tenant_key = f"{self.tenant_model._meta.app_label}.{self.tenant_model.__name__}"
         id_mappings[tenant_key] = self.tenant_mappings
-        
+
         # For each model, check if it has a tenant FK and apply mappings
         for model in models:
             if model == self.tenant_model:
                 continue  # Already handled above
-                
-            model_key = f"{model._meta.app_label}.{model.__name__}"
-            
+
             # Check if this model has a tenant FK
             from django.db import models as django_models
+
             has_tenant_fk = any(
                 isinstance(field, django_models.ForeignKey) and field.related_model == self.tenant_model
                 for field in model._meta.get_fields()
             )
-            
+
             if has_tenant_fk:
                 # This model references tenant, so tenant FK remapping will be auto-applied
                 # by PostgresBulkLoader._apply_id_remappings()
                 pass
-            
+
             # Generate sequential mappings for this model's own IDs if needed
             # (This would typically be done by SequentialRemappingStrategy)
             # For now, we'll leave this empty and let the user specify if needed
-            
+
         return id_mappings
-    
+
     def get_tenant_filter_for_export(self, tenant_id: int) -> Dict[str, Any]:
         """
         Get filter parameters for exporting only data for a specific tenant.
-        
+
         Args:
             tenant_id: The tenant ID to export data for
-            
+
         Returns:
             Dictionary of filter parameters for QuerySet.filter()
         """
@@ -722,56 +735,57 @@ class TenantAwareRemappingStrategy:
 class ImportPlan:
     """
     Represents a plan for importing data from a CSV file.
-    
+
     This value object contains all the information needed to import
     data for a specific model, including dependencies and remapping strategy.
     """
+
     model: Type[models.Model]
     csv_path: Path
-    dependencies: List['ImportPlan'] = field(default_factory=list)
+    dependencies: List["ImportPlan"] = field(default_factory=list)
     id_remapping_strategy: Optional[IdRemappingStrategy] = None
-    
+
     def __post_init__(self):
         """Validate the plan after initialization."""
         if not isinstance(self.csv_path, Path):
             self.csv_path = Path(self.csv_path)
-        
+
         if not self.csv_path.exists():
             raise ValueError(f"CSV file does not exist: {self.csv_path}")
-    
+
     @property
     def model_label(self) -> str:
         """Get the model label (app_label.ModelName)."""
         return f"{self.model._meta.app_label}.{self.model.__name__}"
-    
+
     def discover_foreign_key_dependencies(self) -> Set[Type[models.Model]]:
         """Discover models that this model depends on via foreign keys."""
         dependencies = set()
-        
-        for field in self.model._meta.get_fields():
-            if isinstance(field, models.ForeignKey):
-                dependencies.add(field.related_model)
-        
+
+        for model_field in self.model._meta.get_fields():
+            if isinstance(model_field, models.ForeignKey):
+                dependencies.add(model_field.related_model)
+
         return dependencies
-    
+
     def calculate_import_weight(self) -> int:
         """Calculate weight for dependency ordering (higher = import later)."""
         return len(self.dependencies)
-    
+
     def estimate_row_count(self) -> int:
         """Estimate the number of rows in the CSV file."""
         try:
-            with open(self.csv_path, 'r') as f:
+            with open(self.csv_path) as f:
                 # Count lines and subtract 1 for header
                 line_count = sum(1 for _ in f) - 1
                 return max(0, line_count)
         except Exception:
             return 0
-    
-    def has_dependency(self, other_plan: 'ImportPlan') -> bool:
+
+    def has_dependency(self, other_plan: "ImportPlan") -> bool:
         """Check if this plan depends on another plan."""
         return other_plan in self.dependencies
-    
+
     def __str__(self) -> str:
         """String representation of the import plan."""
         return f"ImportPlan(model={self.model_label}, csv={self.csv_path.name})"
@@ -780,7 +794,7 @@ class ImportPlan:
 class ExportPlan:
     """
     Represents a data export plan for a specific Django model.
-    
+
     ExportPlan defines what data should be exported (model + optional QuerySet)
     and provides dependency analysis to ensure proper export ordering.
     This class was formerly called ImportJob but renamed to better reflect its purpose.
@@ -865,6 +879,7 @@ class ExportPlan:
 
             # Get the importer for this model
             from django_gyro.core import Importer
+
             importer_class = Importer.get_importer_for_model(model)
             if importer_class and hasattr(importer_class, "Columns"):
                 # Analyze the Columns configuration
@@ -970,6 +985,7 @@ class ExportPlan:
         """Check if an object is a Django QuerySet."""
         try:
             from django.db.models.query import QuerySet
+
             return isinstance(obj, QuerySet)
         except ImportError:
             return False
@@ -984,13 +1000,13 @@ class ExportPlan:
     def __repr__(self):
         """Detailed string representation of the ExportPlan."""
         return self.__str__()
-    
+
     def __eq__(self, other):
         """Check equality based on model and query."""
         if not isinstance(other, ExportPlan):
             return False
         return self.model == other.model and self.query == other.query
-    
+
     def __hash__(self):
         """Hash based on model and query."""
         return hash((self.model, id(self.query)))

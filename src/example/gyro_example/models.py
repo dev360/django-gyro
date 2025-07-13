@@ -1,5 +1,6 @@
-from django.db import models
 import uuid
+
+from django.db import models
 
 
 class Tenant(models.Model):
@@ -33,10 +34,15 @@ class Customer(models.Model):
     last_name = models.CharField(max_length=100)
     phone = models.CharField(max_length=20, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     # CIRCULAR DEPENDENCY: Customer -> CustomerReferral (nullable, loads first)
-    primary_referrer = models.ForeignKey('CustomerReferral', on_delete=models.SET_NULL, null=True, blank=True,
-                                       help_text="The referral that brought this customer the most value")
+    primary_referrer = models.ForeignKey(
+        "CustomerReferral",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="The referral that brought this customer the most value",
+    )
 
     class Meta:
         unique_together = ["shop", "email"]
@@ -101,7 +107,7 @@ class OrderItem(models.Model):
 
 class CustomerReferral(models.Model):
     """Customer referral tracking - demonstrates circular dependency with Customer"""
-    
+
     REFERRAL_STATUS = [
         ("pending", "Pending"),
         ("confirmed", "Confirmed"),
@@ -112,24 +118,25 @@ class CustomerReferral(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     shop = models.ForeignKey(Shop, on_delete=models.CASCADE)
-    
+
     # CIRCULAR DEPENDENCY: CustomerReferral -> Customer (required, loads second)
-    referred_customer = models.ForeignKey(Customer, on_delete=models.CASCADE, 
-                                        related_name="referrals_received",
-                                        help_text="Customer who was referred")
-    referring_customer = models.ForeignKey(Customer, on_delete=models.CASCADE,
-                                         related_name="referrals_made", 
-                                         help_text="Customer who made the referral")
-    
+    referred_customer = models.ForeignKey(
+        Customer, on_delete=models.CASCADE, related_name="referrals_received", help_text="Customer who was referred"
+    )
+    referring_customer = models.ForeignKey(
+        Customer, on_delete=models.CASCADE, related_name="referrals_made", help_text="Customer who made the referral"
+    )
+
     referral_code = models.CharField(max_length=50, unique=True)
     status = models.CharField(max_length=20, choices=REFERRAL_STATUS, default="pending")
-    
+
     # Tracking business value
     commission_earned = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     orders_generated = models.IntegerField(default=0, help_text="Number of orders from this referral")
-    total_revenue = models.DecimalField(max_digits=10, decimal_places=2, default=0,
-                                      help_text="Total revenue generated from this referral")
-    
+    total_revenue = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0, help_text="Total revenue generated from this referral"
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     confirmed_at = models.DateTimeField(null=True, blank=True)
@@ -140,5 +147,3 @@ class CustomerReferral(models.Model):
 
     def __str__(self):
         return f"{self.referring_customer.email} → {self.referred_customer.email} ({self.status})"
-
-
