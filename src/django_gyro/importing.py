@@ -116,6 +116,7 @@ class HashBasedRemappingStrategy(IdRemappingStrategy):
     def generate_mapping(self, source_data: Any) -> Dict[int, int]:
         """Generate hash-based ID mappings using business key."""
         import hashlib
+
         import pandas as pd
 
         mapping = {}

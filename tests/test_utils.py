@@ -13,7 +13,7 @@ causing Django's app registry to throw "Conflicting 'X' models" errors when test
 ran together in the same session.
 
 The problem occurs at TWO levels:
-1. Django Gyro's own registries (Importer._registry, ImportJob._dependency_cache)  
+1. Django Gyro's own registries (Importer._registry, ImportJob._dependency_cache)
 2. Django's core model registry (apps.app_configs)
 
 BEFORE (broken):
@@ -43,10 +43,10 @@ from tests.test_utils import clear_django_gyro_registries
 class TestMyFeature:
     def setup_method(self):
         clear_django_gyro_registries()
-    
+
     def teardown_method(self):
         clear_django_gyro_registries()
-    
+
     def test_something(self):
         class TestModel(models.Model):  # Natural names work!
             name = models.CharField(max_length=100)
@@ -69,28 +69,28 @@ class TestMyFeature(DjangoGyroTestMixin, TestCase):
 def clear_django_gyro_registries():
     """
     Clear all Django Gyro registries and caches.
-    
+
     This should be called in setUp/tearDown of tests to ensure proper
     test isolation and prevent model registration conflicts.
-    
+
     Clears:
     - Importer._registry: Model to importer mappings
-    - ImportJob._dependency_cache: Dependency computation cache  
+    - ImportJob._dependency_cache: Dependency computation cache
     - ExportPlan._dependency_cache: Export plan dependency cache
     """
     # Import here to avoid circular imports
     from django_gyro import Importer
     from django_gyro.core import ImportJob
     from django_gyro.importing import ExportPlan
-    
+
     # Clear the main importer registry
     if hasattr(Importer, "_registry"):
         Importer._registry.clear()
-    
+
     # Clear dependency caches
     if hasattr(ImportJob, "_dependency_cache"):
         ImportJob._dependency_cache.clear()
-        
+
     if hasattr(ExportPlan, "_dependency_cache"):
         ExportPlan._dependency_cache.clear()
 
@@ -98,10 +98,10 @@ def clear_django_gyro_registries():
 class DjangoGyroTestMixin:
     """
     Mixin class for Django Gyro tests that provides automatic registry cleanup.
-    
+
     Use this mixin in test classes to automatically clear all Django Gyro
     registries before and after each test, ensuring proper test isolation.
-    
+
     Example:
         class TestMyFeature(DjangoGyroTestMixin, TestCase):
             def test_something(self):
@@ -109,12 +109,12 @@ class DjangoGyroTestMixin:
                 class TestModel(models.Model):
                     # ...
     """
-    
+
     def setUp(self):
         """Clear Django Gyro registries before each test."""
         super().setUp()
         clear_django_gyro_registries()
-    
+
     def tearDown(self):
         """Clear Django Gyro registries after each test."""
         clear_django_gyro_registries()

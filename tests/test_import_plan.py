@@ -20,11 +20,13 @@ class TestImportPlan:
     def setup_method(self):
         """Clear the registry before each test."""
         from .test_utils import clear_django_gyro_registries
+
         clear_django_gyro_registries()
 
     def teardown_method(self):
         """Clean up after each test."""
         from .test_utils import clear_django_gyro_registries
+
         clear_django_gyro_registries()
 
     def test_creates_with_model_and_csv_path(self):
