@@ -15,13 +15,12 @@ This will:
 4. Handle ID remapping for foreign key relationships
 """
 
-import os
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connections
 
-from django_gyro.importing import ImportContext, PostgresBulkLoader, SequentialRemappingStrategy
+from django_gyro.importing import ImportContext, PostgresBulkLoader
 from gyro_example.importers import Customer, CustomerReferral, Order, OrderItem, Product, Shop, Tenant
 
 
@@ -76,21 +75,18 @@ class Command(BaseCommand):
 
         try:
             context = ImportContext(
-                source_directory=source_dir,
-                batch_size=batch_size,
-                use_copy=use_copy,
-                target_database=target_database
+                source_directory=source_dir, batch_size=batch_size, use_copy=use_copy, target_database=target_database
             )
-            
+
             csv_files = context.discover_csv_files()
             self.stdout.write(f"   📁 Source directory: {context.source_directory}")
             self.stdout.write(f"   📄 CSV files found: {len(csv_files)}")
-            
+
             for csv_file in csv_files:
                 self.stdout.write(f"      - {csv_file.name} ({csv_file.stat().st_size} bytes)")
-                
+
         except Exception as e:
-            raise CommandError(f"Failed to discover CSV files: {e}")
+            raise CommandError(f"Failed to discover CSV files: {e}") from e
 
         if not csv_files:
             self.stdout.write(self.style.WARNING("   ⚠️  No CSV files found in source directory"))
@@ -130,17 +126,17 @@ class Command(BaseCommand):
             # OrderItem depends on Order and Product
             # CustomerReferral has circular dependency with Customer (Customer.primary_referrer -> CustomerReferral)
             load_order = [Tenant, Shop, Customer, Product, Order, OrderItem, CustomerReferral]
-            
+
             # Filter load order to only include models we have CSV files for
             available_models = set(csv_to_model.values())
             load_order = [model for model in load_order if model in available_models]
-            
+
             self.stdout.write(f"   🎯 Import order determined: {len(load_order)} models")
             for i, model in enumerate(load_order, 1):
                 self.stdout.write(f"      {i}. {model.__name__}")
 
         except Exception as e:
-            raise CommandError(f"Failed to create import plan: {e}")
+            raise CommandError(f"Failed to create import plan: {e}") from e
 
         # Step 3: Verify database connection
         self.stdout.write("\n3. Verifying database connection...")
@@ -153,7 +149,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"   ✅ Database connected: {pg_version.split(',')[0]}")
                 self.stdout.write(f"   🎯 Target database: {target_database}")
         except Exception as e:
-            raise CommandError(f"Database connection failed: {e}")
+            raise CommandError(f"Database connection failed: {e}") from e
 
         # Step 4: Setup ID remapping strategy
         self.stdout.write("\n4. Setting up ID remapping...")
@@ -161,18 +157,18 @@ class Command(BaseCommand):
         try:
             # Use sequential remapping for models with sequential IDs
             # Note: We'll create per-model strategies during import
-            self.stdout.write(f"   🔧 ID remapping strategy: SequentialRemappingStrategy (per model)")
+            self.stdout.write("   🔧 ID remapping strategy: SequentialRemappingStrategy (per model)")
             self.stdout.write(f"   📊 Batch size: {context.batch_size}")
             self.stdout.write(f"   ⚡ Use COPY: {context.use_copy}")
-            
+
         except Exception as e:
-            raise CommandError(f"Failed to setup ID remapping: {e}")
+            raise CommandError(f"Failed to setup ID remapping: {e}") from e
 
         # Step 5: Execute import (or dry run)
         if dry_run:
             self.stdout.write("\n5. Dry Run - Import Plan:")
             self.stdout.write("   🧪 This is a dry run. No data will be imported.")
-            
+
             total_rows = 0
             for model in load_order:
                 # Find CSV file for this model
@@ -181,16 +177,16 @@ class Command(BaseCommand):
                     if model_class == model:
                         csv_file = file
                         break
-                
+
                 if csv_file:
                     # Count rows in CSV (subtract 1 for header)
-                    with open(csv_file, 'r') as f:
+                    with open(csv_file) as f:
                         row_count = sum(1 for line in f) - 1
                     total_rows += row_count
                     self.stdout.write(f"   📄 Would import {row_count} rows from {csv_file.name} to {model.__name__}")
-                    
+
             self.stdout.write(f"   📊 Total rows that would be imported: {total_rows}")
-            
+
         else:
             self.stdout.write("\n5. Executing import...")
 
@@ -206,7 +202,7 @@ class Command(BaseCommand):
                         if model_class == model:
                             csv_file = file
                             break
-                    
+
                     if not csv_file:
                         continue
 
@@ -218,15 +214,15 @@ class Command(BaseCommand):
                         csv_path=csv_file,
                         connection=connection,
                         id_mappings=id_mappings,
-                        on_conflict='ignore'
+                        on_conflict="ignore",
                     )
 
-                    rows_loaded = result['rows_loaded']
+                    rows_loaded = result["rows_loaded"]
                     total_imported += rows_loaded
-                    
+
                     self.stdout.write(f"      ✅ {rows_loaded} rows loaded")
                     self.stdout.write(f"      🏷️  Staging table: {result['staging_table']}")
-                    
+
                     # For demonstration purposes, we'll skip ID remapping generation
                     # In a full implementation, this would use the SequentialRemappingStrategy
                     # to generate mappings for the next models to use
@@ -234,7 +230,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"\n   🎯 Total rows imported: {total_imported}")
 
             except Exception as e:
-                raise CommandError(f"Import failed: {e}")
+                raise CommandError(f"Import failed: {e}") from e
 
         # Step 6: Summary
         self.stdout.write("\n6. Import Summary:")
@@ -242,7 +238,7 @@ class Command(BaseCommand):
         self.stdout.write("   ✅ Import plan created with dependency ordering")
         self.stdout.write("   ✅ Database connection verified")
         self.stdout.write("   ✅ ID remapping strategy configured")
-        
+
         if dry_run:
             self.stdout.write("   🧪 Dry run completed - no data modified")
         else:
@@ -260,7 +256,7 @@ class Command(BaseCommand):
             self.stdout.write("   ✅ INSERT operations - High compatibility")
 
         self.stdout.write("\n" + "=" * 50)
-        
+
         if dry_run:
             self.stdout.write(self.style.SUCCESS("🧪 Dry Run Completed Successfully!"))
             self.stdout.write("Run without --dry-run to actually import the data.")
