@@ -6,8 +6,11 @@ A declarative system for importing and exporting CSV data with Django models. Dj
 
 - **Declarative Import System**: Define how CSV data maps to your Django models using simple class-based importers
 - **Automatic Foreign Key Resolution**: Intelligently resolves relationships between models during import
+- **Circular Dependency Handling**: Automatically resolves circular relationships (e.g., Customer ↔ CustomerReferral)
+- **ID Remapping Strategies**: Multiple strategies for handling ID conflicts during imports
 - **Data Slicing & Export**: Export subsets of your data with complex relationships intact
-- **Multi-tenant Support**: Built-in support for multi-tenant architectures
+- **Multi-tenant Support**: Built-in support for multi-tenant architectures with tenant-aware remapping
+- **PostgreSQL Bulk Loading**: High-performance imports using PostgreSQL COPY operations
 - **Validation-Rich**: Comprehensive validation during import/export operations
 - **Progress Tracking**: Built-in progress bars for long-running operations
 
@@ -84,6 +87,24 @@ DataSlicer.run(
     ],
 )
 ```
+
+#### 4. Management Command for CSV Import
+
+Django Gyro includes a management command for importing CSV data with ID remapping:
+
+```bash
+# Import CSV data with automatic ID remapping
+python manage.py import_csv_data /path/to/csv/files/ --strategy sequential
+
+# Import with tenant-aware remapping (for multi-tenant setups)
+python manage.py import_csv_data /path/to/csv/files/ --strategy tenant --tenant-id 1
+```
+
+**ID Remapping Strategies:**
+- `sequential`: Assigns new sequential IDs starting from MAX(existing_id) + 1
+- `hash`: Uses deterministic hashing based on business keys
+- `tenant`: Automatically handles tenant-specific ID remapping
+- `none`: Preserves original IDs (use with caution)
 
 ## Use Cases
 
