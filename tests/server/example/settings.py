@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django_gyro",
+    "gyro_example",
 ]
 
 MIDDLEWARE = [
@@ -54,12 +55,17 @@ TEMPLATES = [
 ]
 
 # Database
-# Use in-memory SQLite for testing
+# Use in-memory SQLite for unit testing (fast and isolated)
+# Integration tests that need PostgreSQL should run in Docker
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": ":memory:",
-    }
+    },
+    "import_test": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": ":memory:",
+    },
 }
 
 # Password validation
