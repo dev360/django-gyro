@@ -1,4 +1,8 @@
 
+## 0.2.0 (2025-07-13)
+
+- feat: Adds csv import command ([`e7b3642`](https://github.com/dev360/django-gyro/commit/e7b364239acbc73d22bb252f45ef13b4a29a901f))
+
 ## 0.1.0 (2025-06-26)
 
 - feat: Initial release ([`65de224`](https://github.com/dev360/django-gyro/commit/65de22474588e00db3ff00620e0aa2c93814e134))
