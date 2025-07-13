@@ -16,6 +16,7 @@ from django.db import models
 from django.test import TestCase
 
 from django_gyro import DataSlicer, Importer, ImportJob
+
 from .test_utils import DjangoGyroTestMixin
 
 

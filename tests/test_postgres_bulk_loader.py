@@ -12,6 +12,7 @@ import pytest
 from django.db import models
 
 from django_gyro.importing import ImportContext, PostgresBulkLoader
+
 from .test_utils import clear_django_gyro_registries
 
 
@@ -267,8 +268,8 @@ class TestPostgresBulkLoader:
 
         # ID mappings
         id_mappings = {
-            "test_postgres_bulk_loader.Shop": {1: 10, 2: 20}, 
-            "test_postgres_bulk_loader.Tenant": {100: 1000, 200: 2000}
+            "test_postgres_bulk_loader.Shop": {1: 10, 2: 20},
+            "test_postgres_bulk_loader.Tenant": {100: 1000, 200: 2000},
         }
 
         try:
