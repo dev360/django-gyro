@@ -28,8 +28,6 @@ python = ">=3.9"
 django = ">=3.2"
 psycopg2-binary = "^2.9"
 tqdm = "^4.66"
-pandas = "^1.5.3,<2.0"  # Last 1.x version with better compatibility
-numpy = "^1.21.0,<1.26.0"  # Compatible with pandas 1.5.3
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.3"

@@ -7,7 +7,7 @@ during import operations to avoid conflicts.
 
 from unittest.mock import Mock
 
-import pandas as pd
+# pandas removed as dependency
 import pytest
 from django.db import models
 
@@ -74,7 +74,7 @@ class TestSequentialRemappingStrategy:
                 db_table = "test_model"
 
         strategy = SequentialRemappingStrategy(model=IdRemappingTestModel)
-        source_ids = pd.Series([100, 200, 300])
+        source_ids = [100, 200, 300]
 
         # Mock database cursor with proper context manager
         mock_cursor = Mock()
@@ -104,7 +104,7 @@ class TestSequentialRemappingStrategy:
                 db_table = "test_model"
 
         strategy = SequentialRemappingStrategy(model=IdRemappingTestModel)
-        source_ids = pd.Series([100, 200])
+        source_ids = [100, 200]
 
         # Mock database cursor - empty table
         mock_cursor = Mock()
@@ -133,7 +133,7 @@ class TestSequentialRemappingStrategy:
                 db_table = "test_model"
 
         strategy = SequentialRemappingStrategy(model=IdRemappingTestModel)
-        source_ids = pd.Series([500])
+        source_ids = [500]
 
         # Mock database cursor
         mock_cursor = Mock()
@@ -163,7 +163,7 @@ class TestSequentialRemappingStrategy:
 
         strategy = SequentialRemappingStrategy(model=IdRemappingTestModel)
         # Note: unsorted source IDs
-        source_ids = pd.Series([300, 100, 200])
+        source_ids = [300, 100, 200]
 
         # Mock database cursor
         mock_cursor = Mock()
@@ -192,7 +192,7 @@ class TestSequentialRemappingStrategy:
                 db_table = "test_model"
 
         strategy = SequentialRemappingStrategy(model=IdRemappingTestModel)
-        source_ids = pd.Series([100, 100, 200])  # Duplicate 100
+        source_ids = [100, 100, 200]  # Duplicate 100
 
         # Mock database cursor
         mock_cursor = Mock()
@@ -240,9 +240,11 @@ class TestHashBasedRemappingStrategy:
         strategy = HashBasedRemappingStrategy(model=IdRemappingTestModel, business_key="email")
 
         # Mock data with business keys
-        source_data = pd.DataFrame(
-            {"id": [100, 200, 300], "email": ["john@example.com", "jane@example.com", "bob@example.com"]}
-        )
+        source_data = [
+            {"id": 100, "email": "john@example.com"},
+            {"id": 200, "email": "jane@example.com"},
+            {"id": 300, "email": "bob@example.com"},
+        ]
 
         # Exercise
         mapping = strategy.generate_mapping(source_data)
@@ -269,7 +271,11 @@ class TestHashBasedRemappingStrategy:
         strategy = HashBasedRemappingStrategy(model=IdRemappingTestModel, business_key="email")
 
         # Mock data with some empty emails
-        source_data = pd.DataFrame({"id": [100, 200, 300], "email": ["john@example.com", "", "bob@example.com"]})
+        source_data = [
+            {"id": 100, "email": "john@example.com"},
+            {"id": 200, "email": ""},
+            {"id": 300, "email": "bob@example.com"},
+        ]
 
         # Exercise
         mapping = strategy.generate_mapping(source_data)
@@ -292,7 +298,7 @@ class TestHashBasedRemappingStrategy:
 
         strategy = HashBasedRemappingStrategy(model=IdRemappingTestModel, business_key="nonexistent_field")
 
-        source_data = pd.DataFrame({"id": [100, 200], "name": ["John", "Jane"]})
+        source_data = [{"id": 100, "name": "John"}, {"id": 200, "name": "Jane"}]
 
         # Exercise & Verify
         with pytest.raises(ValueError, match="Business key 'nonexistent_field' not found"):
@@ -325,7 +331,7 @@ class TestNoRemappingStrategy:
                 app_label = "test_id_remapping"
 
         strategy = NoRemappingStrategy(model=IdRemappingTestModel)
-        source_ids = pd.Series([100, 200, 300])
+        source_ids = [100, 200, 300]
 
         # Exercise
         mapping = strategy.generate_mapping(source_ids)
@@ -344,7 +350,7 @@ class TestNoRemappingStrategy:
                 app_label = "test_id_remapping"
 
         strategy = NoRemappingStrategy(model=IdRemappingTestModel)
-        source_ids = pd.Series([])
+        source_ids = []
 
         # Exercise
         mapping = strategy.generate_mapping(source_ids)
@@ -457,7 +463,7 @@ class TestIdRemappingStrategyPerformance:
         strategy = SequentialRemappingStrategy(model=IdRemappingTestModel)
 
         # Create large dataset
-        large_source_ids = pd.Series(range(1000, 11000))  # 10k IDs
+        large_source_ids = list(range(1000, 11000))  # 10k IDs
 
         # Mock database cursor
         mock_cursor = Mock()
@@ -489,7 +495,7 @@ class TestIdRemappingStrategyPerformance:
         strategy = HashBasedRemappingStrategy(model=IdRemappingTestModel, business_key="name")
 
         # Same data multiple times
-        source_data = pd.DataFrame({"id": [100, 200], "name": ["John", "Jane"]})
+        source_data = [{"id": 100, "name": "John"}, {"id": 200, "name": "Jane"}]
 
         # Exercise multiple times
         mapping1 = strategy.generate_mapping(source_data)

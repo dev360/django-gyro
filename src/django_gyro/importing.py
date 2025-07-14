@@ -82,13 +82,17 @@ class SequentialRemappingStrategy(IdRemappingStrategy):
 
     def generate_mapping(self, source_ids: Any, target_db: Any) -> Dict[int, int]:
         """Generate sequential ID mappings."""
-        import pandas as pd
-
-        # Convert to pandas Series if needed
-        if not isinstance(source_ids, pd.Series):
-            source_ids = pd.Series(source_ids)
-        # Get unique source IDs to avoid duplicates
-        unique_source_ids = source_ids.drop_duplicates()
+        # Convert to list and get unique values
+        if hasattr(source_ids, "__iter__") and not isinstance(source_ids, (str, bytes)):
+            # Preserve order while removing duplicates
+            seen = set()
+            unique_source_ids = []
+            for sid in source_ids:
+                if sid not in seen:
+                    seen.add(sid)
+                    unique_source_ids.append(sid)
+        else:
+            unique_source_ids = [source_ids]
 
         # Query database for current MAX(id)
         with target_db.cursor() as cursor:
@@ -117,24 +121,36 @@ class HashBasedRemappingStrategy(IdRemappingStrategy):
         """Generate hash-based ID mappings using business key."""
         import hashlib
 
-        import pandas as pd
-
         mapping = {}
 
-        # Ensure we have a DataFrame
-        if not isinstance(source_data, pd.DataFrame):
-            raise ValueError("HashBasedRemappingStrategy requires DataFrame input")
+        # Ensure we have a dictionary or list of dictionaries
+        if isinstance(source_data, dict):
+            # Single record format
+            if "id" not in source_data:
+                raise ValueError("HashBasedRemappingStrategy requires 'id' field in data")
+            if self.business_key not in source_data:
+                raise ValueError(f"Business key '{self.business_key}' not found in data")
 
-        # Check if business key exists
-        if self.business_key not in source_data.columns:
-            raise ValueError(f"Business key '{self.business_key}' not found in data")
+            source_data = [source_data]  # Convert to list for uniform processing
 
-        for _, row in source_data.iterrows():
+        elif isinstance(source_data, list):
+            # List of records format
+            if not source_data:
+                return mapping
+            if "id" not in source_data[0]:
+                raise ValueError("HashBasedRemappingStrategy requires 'id' field in data")
+            if self.business_key not in source_data[0]:
+                raise ValueError(f"Business key '{self.business_key}' not found in data")
+
+        else:
+            raise ValueError("HashBasedRemappingStrategy requires dict or list of dicts input")
+
+        for row in source_data:
             source_id = row["id"]
             business_value = row[self.business_key]
 
             # Skip empty business values
-            if pd.isna(business_value) or business_value == "":
+            if business_value is None or business_value == "":
                 continue
 
             # Generate deterministic hash-based ID
@@ -160,20 +176,11 @@ class NoRemappingStrategy(IdRemappingStrategy):
 
     def generate_mapping(self, source_ids: Any, target_db: Any = None) -> Dict[int, int]:
         """Generate identity mapping (no change)."""
-        try:
-            import pandas as pd
-
-            # Convert to pandas Series if needed
-            if not isinstance(source_ids, pd.Series):
-                source_ids = pd.Series(source_ids)
-            # Create identity mapping
+        # Convert to iterable and create identity mapping
+        if hasattr(source_ids, "__iter__") and not isinstance(source_ids, (str, bytes)):
             return {source_id: source_id for source_id in source_ids}
-        except ImportError:
-            # Fallback if pandas is not available
-            if isinstance(source_ids, (list, tuple)):
-                return {source_id: source_id for source_id in source_ids}
-            else:
-                return {source_ids: source_ids}
+        else:
+            return {source_ids: source_ids}
 
 
 class PostgresBulkLoader:
@@ -265,10 +272,7 @@ class PostgresBulkLoader:
         Returns:
             Dictionary with load statistics
         """
-        try:
-            import pandas as pd
-        except ImportError:
-            raise ImportError("pandas is required for load_csv_with_insert method") from None
+        import csv
 
         if not csv_path.exists():
             raise FileNotFoundError(f"CSV file not found: {csv_path}")
@@ -277,14 +281,27 @@ class PostgresBulkLoader:
         total_rows = 0
 
         with connection.cursor() as cursor:
-            for chunk in pd.read_csv(csv_path, chunksize=batch_size):
-                # Apply ID remapping if provided
-                if id_mappings:
-                    chunk = self._apply_pandas_remapping(chunk, model, id_mappings)
+            with open(csv_path, newline="", encoding="utf-8") as csvfile:
+                reader = csv.DictReader(csvfile)
+                batch = []
 
-                # Generate INSERT statements
-                rows_inserted = self._insert_dataframe_batch(cursor, chunk, model)
-                total_rows += rows_inserted
+                for row in reader:
+                    # Apply ID remapping if provided
+                    if id_mappings:
+                        row = self._apply_dict_remapping(row, model, id_mappings)
+
+                    batch.append(row)
+
+                    # Process batch when it reaches batch_size
+                    if len(batch) >= batch_size:
+                        rows_inserted = self._insert_dict_batch(cursor, batch, model)
+                        total_rows += rows_inserted
+                        batch = []
+
+                # Process remaining rows in final batch
+                if batch:
+                    rows_inserted = self._insert_dict_batch(cursor, batch, model)
+                    total_rows += rows_inserted
 
         return {"rows_loaded": total_rows, "used_copy": False}
 
@@ -392,14 +409,19 @@ class PostgresBulkLoader:
         """Clean up staging table."""
         cursor.execute(f"DROP TABLE IF EXISTS {staging_table}")
 
-    def _apply_pandas_remapping(
-        self, df: Any, model: Type[models.Model], id_mappings: Dict[str, Dict[int, int]]
-    ) -> Any:
-        """Apply ID remapping to pandas DataFrame."""
+    def _apply_dict_remapping(
+        self, row: Dict[str, Any], model: Type[models.Model], id_mappings: Dict[str, Dict[int, int]]
+    ) -> Dict[str, Any]:
+        """Apply ID remapping to a single row dictionary."""
+        # Create a copy to avoid modifying the original
+        remapped_row = row.copy()
+
         # Remap primary key
         model_label = f"{model._meta.app_label}.{model.__name__}"
-        if model_label in id_mappings and "id" in df.columns:
-            df["id"] = df["id"].map(id_mappings[model_label]).fillna(df["id"])
+        if model_label in id_mappings and "id" in remapped_row:
+            old_id = int(remapped_row["id"])
+            new_id = id_mappings[model_label].get(old_id, old_id)
+            remapped_row["id"] = str(new_id)
 
         # Remap foreign keys
         for model_field in model._meta.get_fields():
@@ -408,10 +430,36 @@ class PostgresBulkLoader:
                 related_label = f"{related_model._meta.app_label}.{related_model.__name__}"
                 fk_column = f"{model_field.name}_id"
 
-                if related_label in id_mappings and fk_column in df.columns:
-                    df[fk_column] = df[fk_column].map(id_mappings[related_label]).fillna(df[fk_column])
+                if related_label in id_mappings and fk_column in remapped_row and remapped_row[fk_column]:
+                    old_fk_id = int(remapped_row[fk_column])
+                    new_fk_id = id_mappings[related_label].get(old_fk_id, old_fk_id)
+                    remapped_row[fk_column] = str(new_fk_id)
 
-        return df
+        return remapped_row
+
+    def _insert_dict_batch(self, cursor: Any, batch: List[Dict[str, Any]], model: Type[models.Model]) -> int:
+        """Insert a batch of dictionary rows using INSERT statements."""
+        if not batch:
+            return 0
+
+        # Get field names from the first row
+        field_names = list(batch[0].keys())
+        table_name = model._meta.db_table
+
+        # Build INSERT statement
+        placeholders = ", ".join(["%s"] * len(field_names))
+        columns = ", ".join(field_names)
+        sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+
+        # Prepare data for executemany
+        values = []
+        for row in batch:
+            row_values = [row.get(field, None) for field in field_names]
+            values.append(row_values)
+
+        # Execute batch insert
+        cursor.executemany(sql, values)
+        return len(batch)
 
 
 @dataclass
