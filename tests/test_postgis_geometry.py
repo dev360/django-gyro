@@ -158,13 +158,13 @@ class TestPostGISStagingTableHandling:
 
         # Check CREATE TABLE call
         create_call = calls[0][0][0]
-        assert "CREATE TEMP TABLE import_staging_test_model" in create_call
-        assert "LIKE test_model" in create_call
+        assert 'CREATE TEMP TABLE "import_staging_test_model"' in create_call
+        assert 'LIKE "test_model"' in create_call
 
         # Check ALTER COLUMN call for geometry
         alter_call = calls[1][0][0]
-        assert "ALTER TABLE import_staging_test_model" in alter_call
-        assert "ALTER COLUMN location TYPE TEXT" in alter_call
+        assert 'ALTER TABLE "import_staging_test_model"' in alter_call
+        assert 'ALTER COLUMN "location" TYPE TEXT' in alter_call
 
     def test_skips_geometry_conversion_for_regular_tables(self):
         """_create_staging_table skips ALTER for models without geometry."""
@@ -190,7 +190,7 @@ class TestPostGISStagingTableHandling:
         assert len(calls) == 1
 
         create_call = calls[0][0][0]
-        assert "CREATE TEMP TABLE import_staging_test_model" in create_call
+        assert 'CREATE TEMP TABLE "import_staging_test_model"' in create_call
 
 
 class TestPostGISEWKBConversion:
@@ -233,7 +233,7 @@ class TestPostGISEWKBConversion:
 
         # Check the INSERT statement contains EWKB conversion
         insert_call = calls[-1][0][0]
-        assert "INSERT INTO test_model" in insert_call
+        assert 'INSERT INTO "test_model"' in insert_call
         assert "ST_GeomFromEWKB" in insert_call
         assert "CASE" in insert_call
         assert "\\\\x%" in insert_call  # Handles escaped \x prefixed hex
@@ -264,7 +264,7 @@ class TestPostGISEWKBConversion:
         assert len(calls) == 1
 
         insert_call = calls[0][0][0]
-        assert "INSERT INTO test_model SELECT * FROM import_staging_test_model" in insert_call
+        assert 'INSERT INTO "test_model" SELECT * FROM "import_staging_test_model"' in insert_call
         assert "ST_GeomFromEWKB" not in insert_call
         assert "CASE" not in insert_call
 

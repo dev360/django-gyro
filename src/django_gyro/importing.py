@@ -339,13 +339,13 @@ class PostgresBulkLoader:
         staging_table = f"import_staging_{model._meta.db_table}"
 
         # Use INCLUDING DEFAULTS to avoid copying incompatible spatial indexes
-        sql = f"CREATE TEMP TABLE {staging_table} (LIKE {model._meta.db_table} INCLUDING DEFAULTS)"
+        sql = f'CREATE TEMP TABLE "{staging_table}" (LIKE "{model._meta.db_table}" INCLUDING DEFAULTS)'
         cursor.execute(sql)
 
         # Handle PostGIS geometry columns - convert to TEXT for COPY compatibility
         geometry_columns = self._get_geometry_columns(model)
         for geom_column in geometry_columns:
-            alter_sql = f"ALTER TABLE {staging_table} ALTER COLUMN {geom_column} TYPE TEXT"
+            alter_sql = f'ALTER TABLE "{staging_table}" ALTER COLUMN "{geom_column}" TYPE TEXT'
             cursor.execute(alter_sql)
 
     def _copy_csv_to_staging(self, cursor: Any, csv_path: Path, model: Type[models.Model]) -> None:
@@ -374,9 +374,10 @@ class PostgresBulkLoader:
         if not mapped_columns:
             raise ValueError(f"No CSV columns could be mapped to database columns for model {model.__name__}")
 
-        # Construct COPY statement with explicit column list
-        columns_sql = "(" + ", ".join(mapped_columns) + ")"
-        copy_sql = f"COPY {staging_table} {columns_sql} FROM STDIN WITH CSV HEADER"
+        # Construct COPY statement with explicit column list - quote identifiers for PostgreSQL
+        quoted_columns = [f'"{column}"' for column in mapped_columns]
+        columns_sql = "(" + ", ".join(quoted_columns) + ")"
+        copy_sql = f'COPY "{staging_table}" {columns_sql} FROM STDIN WITH CSV HEADER'
 
         with open(csv_path, newline="", encoding="utf-8") as f:
             cursor.copy_expert(copy_sql, f)
@@ -408,11 +409,11 @@ class PostgresBulkLoader:
         # Build CASE statement for efficient bulk update
         case_clauses = []
         for old_id, new_id in mapping.items():
-            case_clauses.append(f"WHEN {column_name} = {old_id} THEN {new_id}")
+            case_clauses.append(f'WHEN "{column_name}" = {old_id} THEN {new_id}')
 
         old_ids = ", ".join(str(old_id) for old_id in mapping.keys())
 
-        sql = f"UPDATE {staging_table} SET {column_name} = CASE {' '.join(case_clauses)} END WHERE {column_name} IN ({old_ids})"
+        sql = f'UPDATE "{staging_table}" SET "{column_name}" = CASE {" ".join(case_clauses)} END WHERE "{column_name}" IN ({old_ids})'
 
         cursor.execute(sql)
 
@@ -438,20 +439,20 @@ class PostgresBulkLoader:
                     # Convert EWKB hex to geometry using ST_GeomFromEWKB
                     select_columns.append(f"""
                         CASE
-                            WHEN {column} IS NULL OR {column} = '' THEN NULL
-                            WHEN {column} LIKE '\\\\x%' THEN ST_GeomFromEWKB(decode(substring({column} from 3), 'hex'))
-                            WHEN {column} LIKE '\\x%' THEN ST_GeomFromEWKB({column}::bytea)
-                            ELSE ST_GeomFromEWKB(decode({column}, 'hex'))
-                        END AS {column}
+                            WHEN "{column}" IS NULL OR "{column}" = '' THEN NULL
+                            WHEN "{column}" LIKE '\\\\x%' THEN ST_GeomFromEWKB(decode(substring("{column}" from 3), 'hex'))
+                            WHEN "{column}" LIKE '\\x%' THEN ST_GeomFromEWKB("{column}"::bytea)
+                            ELSE ST_GeomFromEWKB(decode("{column}", 'hex'))
+                        END AS "{column}"
                     """)
                 else:
-                    select_columns.append(column)
+                    select_columns.append(f'"{column}"')
 
             select_clause = ",\n".join(select_columns)
-            base_sql = f"INSERT INTO {target_table} SELECT {select_clause} FROM {staging_table}"
+            base_sql = f'INSERT INTO "{target_table}" SELECT {select_clause} FROM "{staging_table}"'
         else:
             # Regular table without geometry columns
-            base_sql = f"INSERT INTO {target_table} SELECT * FROM {staging_table}"
+            base_sql = f'INSERT INTO "{target_table}" SELECT * FROM "{staging_table}"'
 
         if on_conflict == "ignore":
             sql = f"{base_sql} ON CONFLICT DO NOTHING"
@@ -466,7 +467,7 @@ class PostgresBulkLoader:
 
     def _cleanup_staging_table(self, cursor: Any, staging_table: str) -> None:
         """Clean up staging table."""
-        cursor.execute(f"DROP TABLE IF EXISTS {staging_table}")
+        cursor.execute(f'DROP TABLE IF EXISTS "{staging_table}"')
 
     def _apply_dict_remapping(
         self, row: Dict[str, Any], model: Type[models.Model], id_mappings: Dict[str, Dict[int, int]]
@@ -507,8 +508,8 @@ class PostgresBulkLoader:
 
         # Build INSERT statement
         placeholders = ", ".join(["%s"] * len(field_names))
-        columns = ", ".join(field_names)
-        sql = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+        quoted_columns = ", ".join([f'"{field}"' for field in field_names])
+        sql = f'INSERT INTO "{table_name}" ({quoted_columns}) VALUES ({placeholders})'
 
         # Prepare data for executemany
         values = []
@@ -792,7 +793,7 @@ class CircularDependencyResolver:
                 new_fk_value = id_mappings.get(related_key, {}).get(original_fk_value, original_fk_value)
 
                 # Execute the update
-                sql = f"UPDATE {model._meta.db_table} SET {field} = %s WHERE id = %s"
+                sql = f'UPDATE "{model._meta.db_table}" SET "{field}" = %s WHERE "id" = %s'
                 cursor.execute(sql, [new_fk_value, new_pk])
 
 

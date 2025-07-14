@@ -47,7 +47,7 @@ class TestPostgresBulkLoader:
 
         # Verify
         mock_cursor.execute.assert_called_once_with(
-            "CREATE TEMP TABLE import_staging_test_model (LIKE test_model INCLUDING DEFAULTS)"
+            'CREATE TEMP TABLE "import_staging_test_model" (LIKE "test_model" INCLUDING DEFAULTS)'
         )
 
     def test_copies_csv_data_to_staging_table(self):
@@ -81,7 +81,7 @@ class TestPostgresBulkLoader:
             mock_cursor.copy_expert.assert_called_once()
             call_args = mock_cursor.copy_expert.call_args
             copy_sql = call_args[0][0]
-            assert "COPY import_staging_test_model (name, email) FROM STDIN" in copy_sql
+            assert 'COPY "import_staging_test_model" ("name", "email") FROM STDIN' in copy_sql
             assert "WITH CSV HEADER" in copy_sql
         finally:
             csv_path.unlink()
@@ -117,11 +117,11 @@ class TestPostgresBulkLoader:
         # Verify
         mock_cursor.execute.assert_called_once()
         sql = mock_cursor.execute.call_args[0][0]
-        assert "UPDATE import_staging_shop SET tenant_id = CASE" in sql
-        assert "WHEN tenant_id = 1 THEN 10" in sql
-        assert "WHEN tenant_id = 2 THEN 20" in sql
-        assert "WHEN tenant_id = 3 THEN 30" in sql
-        assert "END WHERE tenant_id IN (1, 2, 3)" in sql
+        assert 'UPDATE "import_staging_shop" SET "tenant_id" = CASE' in sql
+        assert 'WHEN "tenant_id" = 1 THEN 10' in sql
+        assert 'WHEN "tenant_id" = 2 THEN 20' in sql
+        assert 'WHEN "tenant_id" = 3 THEN 30' in sql
+        assert 'END WHERE "tenant_id" IN (1, 2, 3)' in sql
 
     def test_handles_empty_id_mapping(self):
         """PostgresBulkLoader handles empty ID mappings gracefully."""
@@ -161,8 +161,8 @@ class TestPostgresBulkLoader:
         # Verify
         mock_cursor.execute.assert_called_once()
         sql = mock_cursor.execute.call_args[0][0]
-        assert "INSERT INTO test_model" in sql
-        assert "SELECT * FROM import_staging_test_model" in sql
+        assert 'INSERT INTO "test_model"' in sql
+        assert 'FROM "import_staging_test_model"' in sql
 
     def test_handles_duplicate_key_conflicts(self):
         """PostgresBulkLoader handles duplicate key conflicts during insert."""
@@ -185,7 +185,7 @@ class TestPostgresBulkLoader:
         # Verify
         mock_cursor.execute.assert_called_once()
         sql = mock_cursor.execute.call_args[0][0]
-        assert "INSERT INTO test_model" in sql
+        assert 'INSERT INTO "test_model"' in sql
         assert "ON CONFLICT DO NOTHING" in sql
 
     def test_loads_csv_with_complete_workflow(self):
@@ -546,3 +546,77 @@ class TestPostgresBulkLoaderIntegration:
                 # Verify fallback to INSERT was used
                 mock_insert.assert_called_once()
                 assert result["used_copy"] is False
+
+    def test_quotes_reserved_keywords_in_sql_statements(self):
+        """PostgresBulkLoader properly quotes PostgreSQL reserved keywords in SQL statements."""
+
+        # Setup - Create a model with reserved keywords as column names
+        class TestModel(models.Model):
+            # These are PostgreSQL reserved keywords that need quoting
+            user = models.CharField(max_length=100)  # 'user' is reserved
+            order = models.IntegerField()  # 'order' is reserved
+            table = models.CharField(max_length=50)  # 'table' is reserved
+
+            class Meta:
+                app_label = "test_postgres_bulk_loader"
+                db_table = "reserved_keywords_test"
+
+        loader = PostgresBulkLoader()
+        mock_cursor = Mock()
+
+        # Test 1: CREATE TABLE statement quotes identifiers
+        loader._create_staging_table(mock_cursor, TestModel)
+
+        create_sql = mock_cursor.execute.call_args_list[0][0][0]
+        assert 'CREATE TEMP TABLE "import_staging_reserved_keywords_test"' in create_sql
+        assert 'LIKE "reserved_keywords_test"' in create_sql
+
+        # Test 2: COPY statement quotes column names
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            csv_path = Path(temp_dir) / "test.csv"
+            with open(csv_path, "w") as f:
+                f.write("user,order,table\n")
+                f.write("john,1,users\n")
+
+            # Mock the copy_expert method
+            mock_cursor.copy_expert = Mock()
+
+            loader._copy_csv_to_staging(mock_cursor, csv_path, TestModel)
+
+            copy_sql = mock_cursor.copy_expert.call_args[0][0]
+            assert 'COPY "import_staging_reserved_keywords_test"' in copy_sql
+            assert '("user", "order", "table")' in copy_sql
+
+        # Test 3: UPDATE statement quotes column names (for ID remapping)
+        mapping = {1: 10, 2: 20}
+        loader._apply_fk_remapping(mock_cursor, "import_staging_reserved_keywords_test", "user", mapping)
+
+        update_sql = mock_cursor.execute.call_args_list[-1][0][0]
+        assert 'UPDATE "import_staging_reserved_keywords_test"' in update_sql
+        assert 'SET "user" = CASE' in update_sql
+        assert 'WHEN "user" = 1 THEN 10' in update_sql
+        assert 'WHERE "user" IN (1, 2)' in update_sql
+
+        # Test 4: INSERT statement quotes table names
+        loader._insert_from_staging(mock_cursor, TestModel)
+
+        insert_sql = mock_cursor.execute.call_args_list[-1][0][0]
+        assert 'INSERT INTO "reserved_keywords_test"' in insert_sql
+        assert 'FROM "import_staging_reserved_keywords_test"' in insert_sql
+        # Uses SELECT * for non-geometry tables, so specific column names aren't in SQL
+
+        # Test 5: Dictionary batch insert quotes identifiers
+        batch_data = [{"user": "john", "order": 1, "table": "users"}, {"user": "jane", "order": 2, "table": "products"}]
+        loader._insert_dict_batch(mock_cursor, batch_data, TestModel)
+
+        batch_insert_sql = mock_cursor.executemany.call_args[0][0]
+        assert 'INSERT INTO "reserved_keywords_test"' in batch_insert_sql
+        assert '("user", "order", "table")' in batch_insert_sql
+
+        # Test 6: Cleanup statement quotes table name
+        loader._cleanup_staging_table(mock_cursor, "import_staging_reserved_keywords_test")
+
+        cleanup_sql = mock_cursor.execute.call_args_list[-1][0][0]
+        assert 'DROP TABLE IF EXISTS "import_staging_reserved_keywords_test"' in cleanup_sql
