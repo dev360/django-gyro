@@ -344,11 +344,35 @@ class PostgresBulkLoader:
 
     def _copy_csv_to_staging(self, cursor: Any, csv_path: Path, model: Type[models.Model]) -> None:
         """Copy CSV data to staging table using PostgreSQL COPY command."""
+        import csv
+
         staging_table = f"import_staging_{model._meta.db_table}"
 
-        copy_sql = f"COPY {staging_table} FROM STDIN WITH CSV HEADER"
+        # Read CSV headers to determine column mapping
+        with open(csv_path, newline="", encoding="utf-8") as csvfile:
+            reader = csv.reader(csvfile)
+            csv_headers = next(reader)
 
-        with open(csv_path) as f:
+        # Get database table column names
+        db_columns = [field.column for field in model._meta.get_fields() if hasattr(field, "column")]
+
+        # Map CSV headers to database columns (exact match for now)
+        mapped_columns = []
+        for header in csv_headers:
+            if header in db_columns:
+                mapped_columns.append(header)
+            else:
+                # Log warning about unmapped column but continue
+                print(f"Warning: CSV column '{header}' not found in model {model.__name__}")
+
+        if not mapped_columns:
+            raise ValueError(f"No CSV columns could be mapped to database columns for model {model.__name__}")
+
+        # Construct COPY statement with explicit column list
+        columns_sql = "(" + ", ".join(mapped_columns) + ")"
+        copy_sql = f"COPY {staging_table} {columns_sql} FROM STDIN WITH CSV HEADER"
+
+        with open(csv_path, newline="", encoding="utf-8") as f:
             cursor.copy_expert(copy_sql, f)
 
     def _apply_id_remappings(

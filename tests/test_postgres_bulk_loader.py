@@ -80,8 +80,9 @@ class TestPostgresBulkLoader:
             # Verify
             mock_cursor.copy_expert.assert_called_once()
             call_args = mock_cursor.copy_expert.call_args
-            assert "COPY import_staging_test_model FROM STDIN" in call_args[0][0]
-            assert "WITH CSV HEADER" in call_args[0][0]
+            copy_sql = call_args[0][0]
+            assert "COPY import_staging_test_model (name, email) FROM STDIN" in copy_sql
+            assert "WITH CSV HEADER" in copy_sql
         finally:
             csv_path.unlink()
 
