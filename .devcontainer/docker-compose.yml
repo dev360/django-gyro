@@ -1,8 +1,6 @@
-version: "3.8"
-
 services:
   gyro_db:
-    image: postgres:15
+    image: postgis/postgis:15-3.3
     container_name: gyro_db
     environment:
       POSTGRES_DB: gyro_example
@@ -44,7 +42,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      - DATABASE_URL=postgresql://gyro_user:gyro_password@gyro_db:5432/gyro_example
+      - DATABASE_URL=postgis://gyro_user:gyro_password@gyro_db:5432/gyro_example
       - POSTGRES_DB=gyro_example
       - POSTGRES_USER=gyro_user
       - POSTGRES_PASSWORD=gyro_password

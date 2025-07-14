@@ -42,19 +42,34 @@ class PostgresSource:
         if self._connection and not self._connection.closed:
             self._connection.close()
 
-    def generate_copy_statement(self, queryset: QuerySet, output_file: str) -> str:
+    def generate_copy_statement(self, queryset: QuerySet, output_file: str, exclude=None) -> str:
         """
         Generate PostgreSQL COPY statement from Django QuerySet.
 
         Args:
             queryset: Django QuerySet to convert
             output_file: Output file path (for reference, actual output goes to STDOUT)
+            exclude: Optional list of column names to exclude from export
 
         Returns:
             COPY statement string
         """
         # Get the raw SQL from the QuerySet
         sql, params = queryset.query.sql_with_params()
+
+        # Exclude columns if requested
+        if exclude:
+            # Parse the SELECT clause and remove excluded columns
+            # This is a simple string replacement; for complex queries, use a SQL parser
+            select_prefix = "SELECT "
+            if sql.strip().upper().startswith(select_prefix):
+                select_end = sql.upper().find(" FROM ")
+                if select_end > 0:
+                    select_cols = sql[len(select_prefix) : select_end]
+                    cols = [c.strip() for c in select_cols.split(",")]
+                    cols = [c for c in cols if not any(ex in c for ex in exclude)]
+                    new_select = select_prefix + ", ".join(cols)
+                    sql = new_select + sql[select_end:]
 
         # Substitute parameters into the SQL
         if params:
@@ -122,18 +137,19 @@ class PostgresSource:
             # Don't close connection here - let it be reused
             pass
 
-    def export_queryset(self, queryset: QuerySet, output_file: str) -> Dict[str, Any]:
+    def export_queryset(self, queryset: QuerySet, output_file: str, exclude=None) -> Dict[str, Any]:
         """
         Export a Django QuerySet to CSV file.
 
         Args:
             queryset: Django QuerySet to export
             output_file: Path to output CSV file
+            exclude: Optional list of column names to exclude from export
 
         Returns:
             Dict with export statistics
         """
-        copy_statement = self.generate_copy_statement(queryset, output_file)
+        copy_statement = self.generate_copy_statement(queryset, output_file, exclude=exclude)
         return self.execute_copy(copy_statement, output_file)
 
     def __enter__(self):

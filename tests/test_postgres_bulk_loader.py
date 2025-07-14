@@ -47,7 +47,7 @@ class TestPostgresBulkLoader:
 
         # Verify
         mock_cursor.execute.assert_called_once_with(
-            "CREATE TEMP TABLE import_staging_test_model (LIKE test_model INCLUDING ALL)"
+            "CREATE TEMP TABLE import_staging_test_model (LIKE test_model INCLUDING DEFAULTS)"
         )
 
     def test_copies_csv_data_to_staging_table(self):

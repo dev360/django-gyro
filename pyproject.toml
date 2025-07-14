@@ -112,7 +112,7 @@ legacy_tox_ini = """
     allowlist_externals = poetry
     set_env =
         PYTHONDEVMODE = 1
-    commands_pre = poetry install
+    commands_pre = poetry install --with=test
     commands = poetry run python -m pytest tests/
 """
 

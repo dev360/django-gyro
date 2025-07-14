@@ -211,18 +211,20 @@ class ImportJob:
     Attributes:
         model: The Django model class to import
         query: Optional QuerySet to filter the data (None means all records)
+        exclude: Optional list of field/column names to exclude from export
     """
 
     # Class-level cache for dependency computations
     _dependency_cache = {}
 
-    def __init__(self, model, query=None):
+    def __init__(self, model, query=None, exclude=None):
         """
         Initialize an ImportJob.
 
         Args:
             model: Django model class to import
             query: Optional QuerySet to filter data (must match model)
+            exclude: Optional list of field/column names to exclude from export
 
         Raises:
             TypeError: If model is not a Django model or query is not a QuerySet
@@ -244,6 +246,7 @@ class ImportJob:
         # Set properties (make them private to prevent modification)
         self._model = model
         self._query = query
+        self._exclude = exclude or []
 
     @property
     def model(self):
@@ -254,6 +257,11 @@ class ImportJob:
     def query(self):
         """Get the QuerySet for this import job (or None for all records)."""
         return self._query
+
+    @property
+    def exclude(self):
+        """Get the list of excluded fields/columns for this import job."""
+        return self._exclude
 
     def get_dependencies(self):
         """
@@ -542,6 +550,7 @@ class DataSlicer:
             source: Source instance (e.g., PostgresSource)
             target: Target instance (e.g., FileTarget)
             jobs: List of ImportJob instances defining what data to extract
+            Each job may specify an 'exclude' list of columns to omit from export.
             progress_callback: Optional callback for progress updates
             use_notebook_progress: Whether to use notebook-style progress bars
 
@@ -619,7 +628,7 @@ class DataSlicer:
 
                     try:
                         # Export from PostgreSQL
-                        export_result = source.export_queryset(query, temp_path)
+                        export_result = source.export_queryset(query, temp_path, exclude=getattr(job, "exclude", []))
 
                         # Copy to target
                         if isinstance(target, FileTarget):

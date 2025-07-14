@@ -338,7 +338,8 @@ class PostgresBulkLoader:
         """Create temporary staging table with same structure as target table."""
         staging_table = f"import_staging_{model._meta.db_table}"
 
-        sql = f"CREATE TEMP TABLE {staging_table} (LIKE {model._meta.db_table} INCLUDING ALL)"
+        # Use INCLUDING DEFAULTS to avoid copying incompatible spatial indexes
+        sql = f"CREATE TEMP TABLE {staging_table} (LIKE {model._meta.db_table} INCLUDING DEFAULTS)"
         cursor.execute(sql)
 
         # Handle PostGIS geometry columns - convert to TEXT for COPY compatibility
@@ -438,6 +439,7 @@ class PostgresBulkLoader:
                     select_columns.append(f"""
                         CASE
                             WHEN {column} IS NULL OR {column} = '' THEN NULL
+                            WHEN {column} LIKE '\\\\x%' THEN ST_GeomFromEWKB(decode(substring({column} from 3), 'hex'))
                             WHEN {column} LIKE '\\x%' THEN ST_GeomFromEWKB({column}::bytea)
                             ELSE ST_GeomFromEWKB(decode({column}, 'hex'))
                         END AS {column}
@@ -522,19 +524,23 @@ class PostgresBulkLoader:
         """Get list of geometry column names for a model."""
         geometry_columns = []
 
+        # List of geometry type keywords to check
+        geometry_keywords = [
+            "geometry",
+            "geography",
+            "point",
+            "linestring",
+            "polygon",
+            "multipolygon",
+            "multilinestring",
+            "multipoint",
+        ]
+
         for model_field in model._meta.get_fields():
             if hasattr(model_field, "column"):
-                # Check if it's a geometry field (PostGIS field types)
-                field_type = getattr(model_field, "get_internal_type", lambda: "")()
+                field_type = getattr(model_field, "get_internal_type", lambda: "")().lower()
                 class_name = model_field.__class__.__name__.lower()
-
-                if (
-                    "geometry" in field_type.lower()
-                    or "geography" in field_type.lower()
-                    or "geometry" in class_name
-                    or "geography" in class_name
-                    or "point" in class_name
-                ):
+                if any(keyword in field_type or keyword in class_name for keyword in geometry_keywords):
                     geometry_columns.append(model_field.column)
 
         return geometry_columns

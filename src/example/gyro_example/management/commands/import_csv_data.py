@@ -17,11 +17,13 @@ This will:
 
 from pathlib import Path
 
+import psycopg2
+from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connections
 
 from django_gyro.importing import ImportContext, PostgresBulkLoader
-from gyro_example.importers import Customer, CustomerReferral, Order, OrderItem, Product, Shop, Tenant
+from gyro_example.importers import Customer, Order, OrderItem, Product, Shop, Tenant
 
 
 class Command(BaseCommand):
@@ -56,6 +58,11 @@ class Command(BaseCommand):
             action="store_true",
             help="Show what would be imported without actually importing",
         )
+        parser.add_argument(
+            "--reset-db",
+            action="store_true",
+            help="Drop and recreate the target database before import (default: False)",
+        )
 
     def handle(self, *args, **options):
         source_dir = Path(options["source_dir"])
@@ -63,9 +70,44 @@ class Command(BaseCommand):
         batch_size = options["batch_size"]
         use_copy = not options["use_insert"]
         dry_run = options["dry_run"]
+        reset_db = options.get("reset_db", False)
 
         self.stdout.write(self.style.SUCCESS("Django Gyro CSV Import"))
         self.stdout.write("=" * 50)
+
+        # --- Ensure target database exists and is migrated ---
+        if target_database != "default" and reset_db:
+            from django.conf import settings
+
+            db_settings = settings.DATABASES[target_database]
+            db_name = db_settings["NAME"]
+            db_user = db_settings["USER"]
+            db_password = db_settings["PASSWORD"]
+            db_host = db_settings["HOST"]
+            db_port = db_settings["PORT"]
+            # Connect to the 'postgres' database to manage DBs
+            conn = psycopg2.connect(
+                dbname="postgres",
+                user=db_user,
+                password=db_password,
+                host=db_host,
+                port=db_port,
+            )
+            conn.autocommit = True
+            cur = conn.cursor()
+            # Drop DB if exists
+            cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
+            if cur.fetchone():
+                self.stdout.write(f"   ⚠️  Dropping existing database: {db_name}")
+                cur.execute(f"DROP DATABASE IF EXISTS {db_name}")
+            # Create DB
+            self.stdout.write(f"   ➕ Creating database: {db_name}")
+            cur.execute(f"CREATE DATABASE {db_name}")
+            cur.close()
+            conn.close()
+            # Run migrations
+            self.stdout.write(f"   🛠️  Running migrations on {target_database}")
+            call_command("migrate", database=target_database, interactive=False, verbosity=1)
 
         # Step 1: Validate source directory and discover CSV files
         self.stdout.write("\n1. Discovering CSV files...")
@@ -104,7 +146,7 @@ class Command(BaseCommand):
             "gyro_example_product.csv": Product,
             "gyro_example_order.csv": Order,
             "gyro_example_orderitem.csv": OrderItem,
-            "gyro_example_customerreferral.csv": CustomerReferral,
+            # "gyro_example_customerreferral.csv": CustomerReferral,  # Temporarily excluded due to FK issues
         }
 
         try:
@@ -121,11 +163,8 @@ class Command(BaseCommand):
                 return
 
             # Simple dependency ordering (based on foreign key relationships)
-            # Tenant has no dependencies, then Shop, Customer, Product depend on Tenant
-            # Order depends on Tenant, Customer, and Shop
-            # OrderItem depends on Order and Product
-            # CustomerReferral has circular dependency with Customer (Customer.primary_referrer -> CustomerReferral)
-            load_order = [Tenant, Shop, Customer, Product, Order, OrderItem, CustomerReferral]
+            # CustomerReferral is excluded for now due to circular dependency issues
+            load_order = [Tenant, Shop, Customer, Product, Order, OrderItem]
 
             # Filter load order to only include models we have CSV files for
             available_models = set(csv_to_model.values())

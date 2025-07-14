@@ -52,13 +52,21 @@ TEMPLATES = [
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
+        "ENGINE": "django.contrib.gis.db.backends.postgis",
         "NAME": environ.get("POSTGRES_DB", "gyro_example"),
         "USER": environ.get("POSTGRES_USER", "gyro_user"),
         "PASSWORD": environ.get("POSTGRES_PASSWORD", "gyro_password"),
         "HOST": environ.get("POSTGRES_HOST", "gyro_db"),
         "PORT": environ.get("POSTGRES_PORT", "5432"),
-    }
+    },
+    "other": {
+        "ENGINE": "django.contrib.gis.db.backends.postgis",
+        "NAME": environ.get("POSTGRES_DB_OTHER", "gyro_example_other"),
+        "USER": environ.get("POSTGRES_USER", "gyro_user"),
+        "PASSWORD": environ.get("POSTGRES_PASSWORD", "gyro_password"),
+        "HOST": environ.get("POSTGRES_HOST", "gyro_db"),
+        "PORT": environ.get("POSTGRES_PORT", "5432"),
+    },
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -79,3 +87,32 @@ AUTH_PASSWORD_VALIDATORS = [
 STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Add logging configuration to ensure debug output is visible
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": "DEBUG",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "DEBUG",
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": True,
+        },
+        # Add this to catch all other debug output
+        "": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+        },
+    },
+}

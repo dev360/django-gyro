@@ -28,9 +28,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Install system dependencies for PostGIS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev python3-gdal
       - name: Install Poetry
         run: pip install poetry==1.8
       - name: Install dependencies
         run: poetry install --with=test
+      - name: Install GDAL Python bindings matching system version
+        run: |
+          GDAL_VERSION=$(gdal-config --version)
+          echo "System GDAL version: $GDAL_VERSION"
+          poetry run pip install GDAL==$GDAL_VERSION || poetry run pip install GDAL
       - name: Run tox targets for ${{ matrix.python-version }}
         run: poetry run tox run -f python$(echo ${{ matrix.python-version }} | tr -d .)

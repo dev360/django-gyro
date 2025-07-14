@@ -8,14 +8,14 @@ Following the test plan Phase 1: Core Importer Framework
 - Registry lookup functionality
 """
 
-import pytest
 from django.db import models
-from django.test import TestCase
 
 from django_gyro import Importer
 
+from .test_utils import DatabaseMockingTestMixin
 
-class TestImporterMetaclassRegistry(TestCase):
+
+class TestImporterMetaclassRegistry(DatabaseMockingTestMixin):
     """Test the ImporterMeta metaclass and registry functionality."""
 
     def setUp(self):
@@ -66,7 +66,7 @@ class TestImporterMetaclassRegistry(TestCase):
                 pass
 
         # Attempt to create second importer with same model should fail
-        with pytest.raises(ValueError, match="is already registered with importer"):
+        try:
 
             class TestImporter2(Importer):
                 model = TestModelCore2
@@ -74,13 +74,21 @@ class TestImporterMetaclassRegistry(TestCase):
                 class Columns:
                     pass
 
+            raise AssertionError("Expected ValueError")
+        except ValueError as e:
+            assert "is already registered with importer" in str(e)
+
     def test_importer_missing_model_attribute_fails(self):
         """Test that Importer without model attribute raises an error."""
-        with pytest.raises(AttributeError, match="must define a 'model' attribute"):
+        try:
 
             class TestImporter(Importer):
                 class Columns:
                     pass
+
+            raise AssertionError("Expected AttributeError")
+        except AttributeError as e:
+            assert "must define a 'model' attribute" in str(e)
 
     def test_importer_invalid_model_type_fails(self):
         """Test that invalid model types raise appropriate errors."""
@@ -89,7 +97,7 @@ class TestImporterMetaclassRegistry(TestCase):
         class NotAModel:
             pass
 
-        with pytest.raises(TypeError, match="must be a Django model class"):
+        try:
 
             class TestImporter1(Importer):
                 model = NotAModel
@@ -97,8 +105,12 @@ class TestImporterMetaclassRegistry(TestCase):
                 class Columns:
                     pass
 
+            raise AssertionError("Expected TypeError")
+        except TypeError as e:
+            assert "must be a Django model class" in str(e)
+
         # Test with string
-        with pytest.raises(TypeError, match="must be a Django model class"):
+        try:
 
             class TestImporter2(Importer):
                 model = "not_a_model"
@@ -106,8 +118,12 @@ class TestImporterMetaclassRegistry(TestCase):
                 class Columns:
                     pass
 
+            raise AssertionError("Expected TypeError")
+        except TypeError as e:
+            assert "must be a Django model class" in str(e)
 
-class TestImporterFileNaming(TestCase):
+
+class TestImporterFileNaming(DatabaseMockingTestMixin):
     """Test file naming functionality for Importer classes."""
 
     def setUp(self):
@@ -181,7 +197,7 @@ class TestImporterFileNaming(TestCase):
         assert not filename.startswith(".")
 
 
-class TestImporterRegistryLookup(TestCase):
+class TestImporterRegistryLookup(DatabaseMockingTestMixin):
     """Test registry lookup functionality."""
 
     def setUp(self):

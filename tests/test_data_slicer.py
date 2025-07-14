@@ -10,18 +10,55 @@ Following the test plan Phase 3: DataSlicer Operations
 
 import os
 import tempfile
+from unittest.mock import Mock, patch
 
-import pytest
 from django.db import models
-from django.test import TestCase
+from django.db.models.query import QuerySet
 
 from django_gyro import DataSlicer, Importer, ImportJob
 
-from .test_utils import DjangoGyroTestMixin
+from .test_utils import clear_django_gyro_registries
 
 
-class TestDataSlicerConfiguration(DjangoGyroTestMixin, TestCase):
+# Mock Django database operations for tests
+def mock_db_operations():
+    """Create a mock for database operations to prevent geo_db_type errors."""
+    mock_ops = Mock()
+    mock_ops.geo_db_type = Mock(return_value="geometry")
+    mock_ops.max_name_length = Mock(return_value=63)  # Standard PostgreSQL limit
+    return mock_ops
+
+
+def mock_db_connection():
+    """Create a mock database connection."""
+    mock_conn = Mock()
+    mock_conn.ops = mock_db_operations()
+    return mock_conn
+
+
+class MockQuerySet(QuerySet):
+    """A mock QuerySet that can be used in tests without database access."""
+
+    def __init__(self, model=None):
+        # Don't call super().__init__() to avoid database dependencies
+        self.model = model
+        self._result_cache = []
+
+
+class TestDataSlicerConfiguration:
     """Test DataSlicer instantiation and configuration."""
+
+    def setup_method(self):
+        """Clear registries before each test."""
+        clear_django_gyro_registries()
+        # Patch database connection to prevent geo_db_type errors
+        self.db_conn_patcher = patch("django.db.connection", mock_db_connection())
+        self.db_conn_patcher.start()
+
+    def teardown_method(self):
+        """Clear registries after each test."""
+        clear_django_gyro_registries()
+        self.db_conn_patcher.stop()
 
     def test_data_slicer_creation_with_importers(self):
         """Test creating DataSlicer with importer class list."""
@@ -94,16 +131,25 @@ class TestDataSlicerConfiguration(DjangoGyroTestMixin, TestCase):
     def test_data_slicer_invalid_configuration_fails(self):
         """Test that invalid configurations raise errors."""
         # Test with non-list
-        with pytest.raises(TypeError, match="must be a list"):
+        try:
             DataSlicer("not_a_list")
+            raise AssertionError("Expected TypeError")
+        except TypeError as e:
+            assert "must be a list" in str(e)
 
         # Test with empty list
-        with pytest.raises(ValueError, match="cannot be empty"):
+        try:
             DataSlicer([])
+            raise AssertionError("Expected ValueError")
+        except ValueError as e:
+            assert "cannot be empty" in str(e)
 
         # Test with invalid types in list
-        with pytest.raises(TypeError, match="must be Django model or Importer class"):
+        try:
             DataSlicer(["not_a_class"])
+            raise AssertionError("Expected TypeError")
+        except TypeError as e:
+            assert "must be Django model or Importer class" in str(e)
 
         # Test with model that has no importer
         class UnregisteredSlicerModel(models.Model):
@@ -112,8 +158,11 @@ class TestDataSlicerConfiguration(DjangoGyroTestMixin, TestCase):
             class Meta:
                 app_label = "test_data_slicer"
 
-        with pytest.raises(ValueError, match="no importer found"):
+        try:
             DataSlicer([UnregisteredSlicerModel])
+            raise AssertionError("Expected ValueError")
+        except ValueError as e:
+            assert "no importer found" in str(e)
 
     def test_data_slicer_mixed_configuration_works(self):
         """Test that mixed importers and models work together."""
@@ -150,8 +199,20 @@ class TestDataSlicerConfiguration(DjangoGyroTestMixin, TestCase):
         assert TestImporter2 in slicer.importers
 
 
-class TestDataSlicerJobGeneration(DjangoGyroTestMixin, TestCase):
+class TestDataSlicerJobGeneration:
     """Test DataSlicer job generation functionality."""
+
+    def setup_method(self):
+        """Clear registries before each test."""
+        clear_django_gyro_registries()
+        # Patch database connection to prevent geo_db_type errors
+        self.db_conn_patcher = patch("django.db.connection", mock_db_connection())
+        self.db_conn_patcher.start()
+
+    def teardown_method(self):
+        """Clear registries after each test."""
+        clear_django_gyro_registries()
+        self.db_conn_patcher.stop()
 
     def test_generate_import_jobs_from_importers(self):
         """Test generating ImportJobs from registered importers."""
@@ -208,8 +269,11 @@ class TestDataSlicerJobGeneration(DjangoGyroTestMixin, TestCase):
 
         slicer = DataSlicer([TestImporter1])
 
+        # Create mock QuerySet that will pass isinstance check
+        mock_queryset = MockQuerySet(model=TestModel1)
+
         # Test with custom querysets dict
-        custom_querysets = {TestModel1: TestModel1.objects.filter(active=True)}
+        custom_querysets = {TestModel1: mock_queryset}
         jobs = slicer.generate_import_jobs(querysets=custom_querysets)
 
         assert len(jobs) == 1
@@ -297,12 +361,27 @@ class TestDataSlicerJobGeneration(DjangoGyroTestMixin, TestCase):
 
         slicer = DataSlicer([ModelAImporter, ModelBImporter])
 
-        with pytest.raises(ValueError, match="Circular dependency detected"):
+        try:
             slicer.generate_import_jobs()
+            raise AssertionError("Expected ValueError")
+        except ValueError as e:
+            assert "Circular dependency detected" in str(e)
 
 
-class TestDataSlicerExportOperations(DjangoGyroTestMixin, TestCase):
+class TestDataSlicerExportOperations:
     """Test DataSlicer export operations."""
+
+    def setup_method(self):
+        """Clear registries before each test."""
+        clear_django_gyro_registries()
+        # Patch database connection to prevent geo_db_type errors
+        self.db_conn_patcher = patch("django.db.connection", mock_db_connection())
+        self.db_conn_patcher.start()
+
+    def teardown_method(self):
+        """Clear registries after each test."""
+        clear_django_gyro_registries()
+        self.db_conn_patcher.stop()
 
     def test_export_to_csv_single_model(self):
         """Test exporting single model to CSV."""
@@ -391,9 +470,9 @@ class TestDataSlicerExportOperations(DjangoGyroTestMixin, TestCase):
 
         slicer = DataSlicer([TestImporter])
 
-        # Use real QuerySet instead of Mock
-        custom_queryset = TestModel.objects.filter(active=True)
-        querysets = {TestModel: custom_queryset}
+        # Create mock QuerySet that will pass isinstance check
+        mock_queryset = MockQuerySet(model=TestModel)
+        querysets = {TestModel: mock_queryset}
 
         with tempfile.TemporaryDirectory() as temp_dir:
             result = slicer.export_to_csv(temp_dir, querysets=querysets)

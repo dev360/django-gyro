@@ -8,15 +8,17 @@ Following the test plan Phase 1: Core Importer Framework
 - Registry lookup integration
 """
 
-import pytest
+import warnings
+
 from django.db import models
-from django.test import TestCase
 from faker import Faker
 
 from django_gyro import Importer
 
+from .test_utils import DatabaseMockingTestMixin
 
-class TestImporterColumnsValidation(TestCase):
+
+class TestImporterColumnsValidation(DatabaseMockingTestMixin):
     """Test Columns validation within Importer classes."""
 
     def setUp(self):
@@ -74,13 +76,18 @@ class TestImporterColumnsValidation(TestCase):
                 app_label = "test_importer_columns"
 
         # Should generate warning for non-FK field reference
-        with pytest.warns(UserWarning, match="is not a foreign key field"):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
 
             class ProductImporter(Importer):
                 model = ProductColumns2
 
                 class Columns:
                     name = ProductColumns2  # Invalid: referencing model for non-FK field
+
+            # Check that a warning was issued
+            assert len(w) > 0
+            assert "is not a foreign key field" in str(w[0].message)
 
     def test_columns_non_foreign_key_field_warns(self):
         """Test that references to non-FK fields generate warnings."""
@@ -93,13 +100,18 @@ class TestImporterColumnsValidation(TestCase):
                 app_label = "test_importer_columns"
 
         # Should warn about non-FK field being treated as FK
-        with pytest.warns(UserWarning, match="is not a foreign key field"):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
 
             class ProductImporter(Importer):
                 model = ProductColumns3
 
                 class Columns:
                     price = ProductColumns3  # Invalid: price is not a FK
+
+            # Check that a warning was issued
+            assert len(w) > 0
+            assert "is not a foreign key field" in str(w[0].message)
 
     def test_columns_missing_required_relationships_warns(self):
         """Test that missing required FK relationships generate warnings."""
@@ -118,13 +130,18 @@ class TestImporterColumnsValidation(TestCase):
                 app_label = "test_importer_columns"
 
         # Create Product importer without referencing required Category FK
-        with pytest.warns(UserWarning, match="missing foreign key reference"):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
 
             class ProductImporter(Importer):
                 model = ProductColumns4
 
                 class Columns:
                     pass  # Missing category reference
+
+            # Check that a warning was issued
+            assert len(w) > 0
+            assert "missing foreign key reference" in str(w[0].message)
 
     def test_columns_valid_faker_method_reference(self):
         """Test that valid Faker method objects are accepted."""
@@ -158,13 +175,18 @@ class TestImporterColumnsValidation(TestCase):
                 app_label = "test_importer_columns"
 
         # Should warn about invalid Faker reference
-        with pytest.warns(UserWarning, match="must be a Django model or Faker method"):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
 
             class ProductImporter(Importer):
                 model = ProductColumns6
 
                 class Columns:
                     name = "not.a.faker.method"  # Invalid faker reference
+
+            # Check that a warning was issued
+            assert len(w) > 0
+            assert "must be a Django model or Faker method" in str(w[0].message)
 
     def test_columns_mixed_valid_references(self):
         """Test that mixed valid Django models and Faker methods work."""
@@ -205,7 +227,7 @@ class TestImporterColumnsValidation(TestCase):
         assert ProductColumns7 in Importer._registry
 
 
-class TestImporterColumnsRegistryLookup(TestCase):
+class TestImporterColumnsRegistryLookup(DatabaseMockingTestMixin):
     """Test Columns validation with registry lookup functionality."""
 
     def setUp(self):
@@ -272,13 +294,18 @@ class TestImporterColumnsRegistryLookup(TestCase):
                 app_label = "test_importer_columns"
 
         # Create Product importer without CategoryImporter
-        with pytest.warns(UserWarning, match="no importer found"):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
 
             class ProductImporter(Importer):
                 model = ProductColumns9
 
                 class Columns:
                     category = CategoryColumns6  # CategoryImporter doesn't exist
+
+            # Check that a warning was issued
+            assert len(w) > 0
+            assert "no importer found" in str(w[0].message)
 
     def test_columns_validates_relationship_consistency(self):
         """Test that relationship consistency is validated."""
@@ -310,10 +337,15 @@ class TestImporterColumnsRegistryLookup(TestCase):
                 pass
 
         # Should warn about relationship mismatch
-        with pytest.warns(UserWarning, match="relationship mismatch"):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
 
             class ProductImporter(Importer):
                 model = ProductColumns10
 
                 class Columns:
                     category = WrongModel  # Wrong model for category FK
+
+            # Check that a warning was issued
+            assert len(w) > 0
+            assert "relationship mismatch" in str(w[0].message)

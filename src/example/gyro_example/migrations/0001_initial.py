@@ -29,6 +29,12 @@ class Migration(migrations.Migration):
                 ("last_name", models.CharField(max_length=100)),
                 ("phone", models.CharField(blank=True, max_length=20)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "geom",
+                    __import__("django.contrib.gis.db.models.fields", fromlist=["MultiPolygonField"]).MultiPolygonField(
+                        null=True, blank=True
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(

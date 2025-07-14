@@ -9,17 +9,17 @@ Following the test plan Phase 2: ImportJob Definition
 
 import time
 
-import pytest
 from django.db import models
-from django.test import TestCase
 
 from django_gyro import Importer, ImportJob
+
+from .test_utils import DatabaseMockingTestMixin
 
 # Create unique suffix to avoid model conflicts
 UNIQUE_SUFFIX = str(int(time.time() * 1000000))[-6:]
 
 
-class TestImportJobCreation(TestCase):
+class TestImportJobCreation(DatabaseMockingTestMixin):
     """Test ImportJob instantiation and basic validation."""
 
     def setUp(self):
@@ -71,16 +71,25 @@ class TestImportJobCreation(TestCase):
         class NotAModel:
             pass
 
-        with pytest.raises(TypeError, match="must be a Django model class"):
+        try:
             ImportJob(model=NotAModel)
+            raise AssertionError("Expected TypeError")
+        except TypeError as e:
+            assert "must be a Django model class" in str(e)
 
-        with pytest.raises(TypeError, match="must be a Django model class"):
+        try:
             ImportJob(model="not_a_class")
+            raise AssertionError("Expected TypeError")
+        except TypeError as e:
+            assert "must be a Django model class" in str(e)
 
     def test_import_job_missing_model_parameter(self):
         """Test that missing model parameter raises error."""
-        with pytest.raises(TypeError, match="missing 1 required positional argument"):
+        try:
             ImportJob()
+            raise AssertionError("Expected TypeError")
+        except TypeError as e:
+            assert "missing 1 required positional argument" in str(e)
 
     def test_import_job_invalid_queryset_type(self):
         """Test that invalid QuerySet types raise errors."""
@@ -91,11 +100,17 @@ class TestImportJobCreation(TestCase):
             class Meta:
                 app_label = "test_import_job"
 
-        with pytest.raises(TypeError, match="must be a Django QuerySet or None"):
+        try:
             ImportJob(model=TestModelJobCreation3, query="not_a_queryset")
+            raise AssertionError("Expected TypeError")
+        except TypeError as e:
+            assert "must be a Django QuerySet or None" in str(e)
 
-        with pytest.raises(TypeError, match="must be a Django QuerySet or None"):
+        try:
             ImportJob(model=TestModelJobCreation3, query=[])
+            raise AssertionError("Expected TypeError")
+        except TypeError as e:
+            assert "must be a Django QuerySet or None" in str(e)
 
     def test_import_job_queryset_model_mismatch(self):
         """Test that QuerySet must match the model."""
@@ -114,8 +129,11 @@ class TestImportJobCreation(TestCase):
 
         wrong_queryset = TestModelJobCreation5.objects.all()
 
-        with pytest.raises(ValueError, match="QuerySet model does not match ImportJob model"):
+        try:
             ImportJob(model=TestModelJobCreation4, query=wrong_queryset)
+            raise AssertionError("Expected ValueError")
+        except ValueError as e:
+            assert "QuerySet model does not match ImportJob model" in str(e)
 
     def test_import_job_empty_queryset_allowed(self):
         """Test that empty QuerySets are allowed."""
@@ -133,7 +151,7 @@ class TestImportJobCreation(TestCase):
         assert job.query == empty_queryset
 
 
-class TestImportJobProperties(TestCase):
+class TestImportJobProperties(DatabaseMockingTestMixin):
     """Test ImportJob properties and immutability."""
 
     def setUp(self):
@@ -174,8 +192,11 @@ class TestImportJobProperties(TestCase):
         job = ImportJob(model=TestModelJobProperties2)
 
         # Should not be able to modify model
-        with pytest.raises(AttributeError):
+        try:
             job.model = None
+            raise AssertionError("Expected AttributeError")
+        except AttributeError:
+            pass  # Expected behavior
 
     def test_query_property_returns_queryset(self):
         """Test that query property returns the QuerySet."""
@@ -204,7 +225,7 @@ class TestImportJobProperties(TestCase):
         assert job.query is None
 
 
-class TestImportJobDependencies(TestCase):
+class TestImportJobDependencies(DatabaseMockingTestMixin):
     """Test ImportJob dependency analysis and graph computation."""
 
     def setUp(self):
@@ -338,8 +359,11 @@ class TestImportJobDependencies(TestCase):
         job = ImportJob(model=ModelAJobDeps3)
 
         # Should detect circular dependency
-        with pytest.raises(ValueError, match="Circular dependency detected"):
+        try:
             job.get_dependencies()
+            raise AssertionError("Expected ValueError")
+        except ValueError as e:
+            assert "Circular dependency detected" in str(e)
 
     def test_get_dependencies_caches_computation(self):
         """Test that dependency computation is cached for performance."""
@@ -383,7 +407,7 @@ class TestImportJobDependencies(TestCase):
         assert hasattr(ImportJob, "_dependency_cache")
 
 
-class TestImportJobDependencyOrdering(TestCase):
+class TestImportJobDependencyOrdering(DatabaseMockingTestMixin):
     """Test dependency ordering functionality for ImportJobs."""
 
     def setUp(self):
@@ -491,8 +515,11 @@ class TestImportJobDependencyOrdering(TestCase):
             ImportJob(model=ModelBJobOrder2),
         ]
 
-        with pytest.raises(ValueError, match="Circular dependency detected"):
+        try:
             ImportJob.sort_by_dependencies(jobs)
+            raise AssertionError("Expected ValueError")
+        except ValueError as e:
+            assert "Circular dependency detected" in str(e)
 
     def test_handle_independent_models_ordering(self):
         """Test that independent models can be in any order."""

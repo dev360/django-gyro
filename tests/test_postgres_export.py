@@ -10,25 +10,15 @@ Following the test plan Phase 4: Data Export Operations
 
 from unittest.mock import Mock, patch
 
-import pytest
 from django.db import models
-from django.test import TestCase
 
 from django_gyro import Importer
 
+from .test_utils import DatabaseMockingTestMixin
 
-class TestPostgresExportSQLGeneration(TestCase):
+
+class TestPostgresExportSQLGeneration(DatabaseMockingTestMixin):
     """Test PostgreSQL export SQL generation functionality."""
-
-    def setUp(self):
-        """Clear the registry before each test."""
-        if hasattr(Importer, "_registry"):
-            Importer._registry.clear()
-
-    def tearDown(self):
-        """Clean up after each test."""
-        if hasattr(Importer, "_registry"):
-            Importer._registry.clear()
 
     def test_converts_django_queryset_to_sql(self):
         """Test converting Django QuerySet to proper SQL."""
@@ -160,18 +150,8 @@ class TestPostgresExportSQLGeneration(TestCase):
         assert "name" in sql
 
 
-class TestPostgresExportCSVGeneration(TestCase):
+class TestPostgresExportCSVGeneration(DatabaseMockingTestMixin):
     """Test CSV generation functionality."""
-
-    def setUp(self):
-        """Clear the registry before each test."""
-        if hasattr(Importer, "_registry"):
-            Importer._registry.clear()
-
-    def tearDown(self):
-        """Clean up after each test."""
-        if hasattr(Importer, "_registry"):
-            Importer._registry.clear()
 
     def test_includes_proper_csv_headers(self):
         """Test CSV export includes correct headers."""
@@ -298,18 +278,8 @@ class TestPostgresExportCSVGeneration(TestCase):
         # Special characters should be properly escaped
 
 
-class TestPostgresExportForeignKeyHandling(TestCase):
+class TestPostgresExportForeignKeyHandling(DatabaseMockingTestMixin):
     """Test foreign key handling in PostgreSQL exports."""
-
-    def setUp(self):
-        """Clear the registry before each test."""
-        if hasattr(Importer, "_registry"):
-            Importer._registry.clear()
-
-    def tearDown(self):
-        """Clean up after each test."""
-        if hasattr(Importer, "_registry"):
-            Importer._registry.clear()
 
     def test_exports_foreign_key_ids_correctly(self):
         """Test that foreign key IDs are exported correctly."""
@@ -449,18 +419,8 @@ class TestPostgresExportForeignKeyHandling(TestCase):
         assert len(fk_fields) >= 2  # category_id and supplier_id
 
 
-class TestPostgresExportProgressTracking(TestCase):
+class TestPostgresExportProgressTracking(DatabaseMockingTestMixin):
     """Test progress tracking for large exports."""
-
-    def setUp(self):
-        """Clear the registry before each test."""
-        if hasattr(Importer, "_registry"):
-            Importer._registry.clear()
-
-    def tearDown(self):
-        """Clean up after each test."""
-        if hasattr(Importer, "_registry"):
-            Importer._registry.clear()
 
     def test_shows_progress_for_large_exports(self):
         """Test progress tracking for large dataset exports."""
@@ -589,8 +549,11 @@ class TestPostgresExportProgressTracking(TestCase):
         with patch("django_gyro.exporters.PostgresExporter.execute_export") as mock_export:
             mock_export.side_effect = KeyboardInterrupt("Export interrupted")
 
-            with pytest.raises(KeyboardInterrupt):
+            try:
                 exporter.export_with_progress(PgProgressModel4.objects.all(), "test.csv")
+                raise AssertionError("Expected KeyboardInterrupt")
+            except KeyboardInterrupt:
+                pass  # Expected behavior
 
             # Should handle interruption gracefully
             # Clean up partial files, etc.

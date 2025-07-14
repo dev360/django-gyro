@@ -2,6 +2,24 @@ import uuid
 
 from django.db import models
 
+# Conditional PostGIS import
+try:
+    from django.contrib.gis.db import models as gis_models
+
+    HAS_POSTGIS = True
+except ImportError:
+    HAS_POSTGIS = False
+
+    # Create a dummy field for when PostGIS isn't available
+    class DummyGeometryField(models.TextField):
+        """Fallback field when PostGIS is not available."""
+
+        pass
+
+    # Create a dummy gis_models namespace for consistency
+    class gis_models:
+        MultiPolygonField = DummyGeometryField
+
 
 class Tenant(models.Model):
     """Multi-tenant organization"""
@@ -34,6 +52,12 @@ class Customer(models.Model):
     last_name = models.CharField(max_length=100)
     phone = models.CharField(max_length=20, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # Geometry field - uses PostGIS if available, otherwise falls back to text field
+    if HAS_POSTGIS:
+        geom = gis_models.MultiPolygonField(null=True, blank=True)
+    else:
+        geom = models.TextField(null=True, blank=True, help_text="PostGIS not available - geometry stored as text")
 
     # CIRCULAR DEPENDENCY: Customer -> CustomerReferral (nullable, loads first)
     primary_referrer = models.ForeignKey(

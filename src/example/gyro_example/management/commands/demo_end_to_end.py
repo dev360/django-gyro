@@ -17,6 +17,7 @@ This will:
 
 import os
 
+from django.contrib.gis.geos import GEOSGeometry
 from django.core.management.base import BaseCommand
 from django.db import connection
 
@@ -96,6 +97,19 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f"   ❌ Tenant with ID {tenant_id} not found"))
             return
 
+        # Populate geom for all customers of this tenant if not already set
+        nyc_multipolygon_wkt = "MULTIPOLYGON(((-74.25909 40.477399, -73.700272 40.477399, -73.700272 40.917577, -74.25909 40.917577, -74.25909 40.477399)))"
+        nyc_geom = GEOSGeometry(nyc_multipolygon_wkt, srid=4326)
+        updated = 0
+        for customer in Customer.objects.filter(tenant=target_tenant, geom__isnull=True):
+            customer.geom = nyc_geom
+            customer.save(update_fields=["geom"])
+            updated += 1
+        if updated:
+            self.stdout.write(f"   🗽 Set geom for {updated} customers to NYC multipolygon (SRID 4326)")
+        else:
+            self.stdout.write("   🗽 All customers already have geom set")
+
         # Create QuerySets as described in technical design
         tenant_query = Tenant.objects.filter(id=tenant_id)
         shops_query = Shop.objects.filter(tenant=target_tenant)
@@ -147,7 +161,9 @@ class Command(BaseCommand):
                 jobs=[
                     ImportJob(model=Tenant, query=tenant_query),
                     ImportJob(model=Shop, query=shops_query),
-                    ImportJob(model=Customer, query=customers_query),
+                    ImportJob(
+                        model=Customer, query=customers_query, exclude=["primary_referrer_id"]
+                    ),  # Exclude FK to avoid import issues
                     ImportJob(model=Product, query=products_query),
                     ImportJob(model=Order, query=orders_query),
                     ImportJob(model=OrderItem, query=order_items_query),
