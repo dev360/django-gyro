@@ -1,4 +1,10 @@
 
+## 0.3.0 (2025-07-14)
+
+- feat: downgraded pandas dep ([`a1fd443`](https://github.com/dev360/django-gyro/commit/a1fd44394dabd92968e028b3f7727b79f7348f69))
+- fix: Removes pandas dep ([`bcd78ea`](https://github.com/dev360/django-gyro/commit/bcd78eaa886909a4fb3750fd59c10f077306fb96))
+- docs: fixes readme ([`b676e5b`](https://github.com/dev360/django-gyro/commit/b676e5becd5a1a02d164cd0fa3ead7597d36d9fb))
+
 ## 0.2.0 (2025-07-13)
 
 - feat: Adds csv import command ([`e7b3642`](https://github.com/dev360/django-gyro/commit/e7b364239acbc73d22bb252f45ef13b4a29a901f))
