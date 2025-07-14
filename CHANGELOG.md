@@ -1,4 +1,8 @@
 
+## 0.3.4 (2025-07-14)
+
+- fix: proper quoting of sql tables and columns ([`5eb64e4`](https://github.com/dev360/django-gyro/commit/5eb64e4dcfac7bfe16cb1b8705a6f2befd1a22d2))
+
 ## 0.3.3 (2025-07-14)
 
 - fix: Monster test refactor.. so much stuff that s UGLY but will need more work ([`0df10a9`](https://github.com/dev360/django-gyro/commit/0df10a9fd2528cdead830ecbd620868600e624d2))
