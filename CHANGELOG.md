@@ -1,4 +1,8 @@
 
+## 0.3.1 (2025-07-14)
+
+- fix: COPY command includes exact column names ([`440c9ea`](https://github.com/dev360/django-gyro/commit/440c9ea4943e26d5c5c8f3eb21831027d45c3581))
+
 ## 0.3.0 (2025-07-14)
 
 - feat: downgraded pandas dep ([`a1fd443`](https://github.com/dev360/django-gyro/commit/a1fd44394dabd92968e028b3f7727b79f7348f69))
