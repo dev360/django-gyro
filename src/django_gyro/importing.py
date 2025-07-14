@@ -339,8 +339,13 @@ class PostgresBulkLoader:
         staging_table = f"import_staging_{model._meta.db_table}"
 
         sql = f"CREATE TEMP TABLE {staging_table} (LIKE {model._meta.db_table} INCLUDING ALL)"
-
         cursor.execute(sql)
+
+        # Handle PostGIS geometry columns - convert to TEXT for COPY compatibility
+        geometry_columns = self._get_geometry_columns(model)
+        for geom_column in geometry_columns:
+            alter_sql = f"ALTER TABLE {staging_table} ALTER COLUMN {geom_column} TYPE TEXT"
+            cursor.execute(alter_sql)
 
     def _copy_csv_to_staging(self, cursor: Any, csv_path: Path, model: Type[models.Model]) -> None:
         """Copy CSV data to staging table using PostgreSQL COPY command."""
@@ -415,8 +420,36 @@ class PostgresBulkLoader:
         staging_table = f"import_staging_{model._meta.db_table}"
         target_table = model._meta.db_table
 
-        # Build INSERT statement
-        base_sql = f"INSERT INTO {target_table} SELECT * FROM {staging_table}"
+        # Handle PostGIS geometry columns with EWKB conversion
+        geometry_columns = self._get_geometry_columns(model)
+
+        if geometry_columns:
+            # Get all column names from the staging table
+            cursor.execute(
+                f"SELECT column_name FROM information_schema.columns WHERE table_name = '{staging_table}' ORDER BY ordinal_position"
+            )
+            all_columns = [row[0] for row in cursor.fetchall()]
+
+            # Build SELECT clause with geometry conversion
+            select_columns = []
+            for column in all_columns:
+                if column in geometry_columns:
+                    # Convert EWKB hex to geometry using ST_GeomFromEWKB
+                    select_columns.append(f"""
+                        CASE
+                            WHEN {column} IS NULL OR {column} = '' THEN NULL
+                            WHEN {column} LIKE '\\x%' THEN ST_GeomFromEWKB({column}::bytea)
+                            ELSE ST_GeomFromEWKB(decode({column}, 'hex'))
+                        END AS {column}
+                    """)
+                else:
+                    select_columns.append(column)
+
+            select_clause = ",\n".join(select_columns)
+            base_sql = f"INSERT INTO {target_table} SELECT {select_clause} FROM {staging_table}"
+        else:
+            # Regular table without geometry columns
+            base_sql = f"INSERT INTO {target_table} SELECT * FROM {staging_table}"
 
         if on_conflict == "ignore":
             sql = f"{base_sql} ON CONFLICT DO NOTHING"
@@ -484,6 +517,27 @@ class PostgresBulkLoader:
         # Execute batch insert
         cursor.executemany(sql, values)
         return len(batch)
+
+    def _get_geometry_columns(self, model: Type[models.Model]) -> List[str]:
+        """Get list of geometry column names for a model."""
+        geometry_columns = []
+
+        for model_field in model._meta.get_fields():
+            if hasattr(model_field, "column"):
+                # Check if it's a geometry field (PostGIS field types)
+                field_type = getattr(model_field, "get_internal_type", lambda: "")()
+                class_name = model_field.__class__.__name__.lower()
+
+                if (
+                    "geometry" in field_type.lower()
+                    or "geography" in field_type.lower()
+                    or "geometry" in class_name
+                    or "geography" in class_name
+                    or "point" in class_name
+                ):
+                    geometry_columns.append(model_field.column)
+
+        return geometry_columns
 
 
 @dataclass
