@@ -111,9 +111,9 @@ For more control over ID remapping, use the Python API:
 
 ```python
 from django_gyro.importing import (
-    ImportContext, 
+    ImportContext,
     SequentialRemappingStrategy,
-    HashBasedRemappingStrategy, 
+    HashBasedRemappingStrategy,
     TenantAwareRemappingStrategy,
     NoRemappingStrategy
 )
@@ -127,7 +127,7 @@ context = ImportContext(
 
 # Hash-based remapping (stable IDs using business keys)
 strategy = HashBasedRemappingStrategy(
-    model=Customer, 
+    model=Customer,
     business_key="email"  # Use email to generate stable IDs
 )
 
