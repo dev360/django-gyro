@@ -1,4 +1,8 @@
 
+## 0.3.3 (2025-07-14)
+
+- fix: Monster test refactor.. so much stuff that s UGLY but will need more work ([`0df10a9`](https://github.com/dev360/django-gyro/commit/0df10a9fd2528cdead830ecbd620868600e624d2))
+
 ## 0.3.2 (2025-07-14)
 
 - fix: Fixes the handling of wktb data ([`76cd770`](https://github.com/dev360/django-gyro/commit/76cd77040d01043fddbc619928d09b2446527149))
