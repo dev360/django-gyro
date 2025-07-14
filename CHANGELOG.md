@@ -1,4 +1,9 @@
 
+## 0.3.2 (2025-07-14)
+
+- fix: Fixes the handling of wktb data ([`76cd770`](https://github.com/dev360/django-gyro/commit/76cd77040d01043fddbc619928d09b2446527149))
+- fix: Fixes the handling of wktb data ([`6adc45d`](https://github.com/dev360/django-gyro/commit/6adc45d74c5f1a7656fc63e9d546864fabdaa6e3))
+
 ## 0.3.1 (2025-07-14)
 
 - fix: COPY command includes exact column names ([`440c9ea`](https://github.com/dev360/django-gyro/commit/440c9ea4943e26d5c5c8f3eb21831027d45c3581))
